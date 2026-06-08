@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Forex Signal Bot</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>₣</text></svg>"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;color:#c8d8f0;min-height:100vh;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:#0d1420;}::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:2px;}
+.btn{background:linear-gradient(135deg,#0066ff,#0044bb);border:none;color:white;padding:9px 20px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.06em;transition:all .2s;text-transform:uppercase;}
+.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 18px rgba(0,102,255,.4);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-sm{padding:6px 14px;font-size:11px;}
+.btn-green{background:linear-gradient(135deg,#007744,#005533);}
+.chip{padding:5px 11px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid #1e3a5f;background:#0d1420;color:#6a8aaa;font-weight:600;letter-spacing:.04em;transition:all .15s;}
+.chip.on{background:#0d2a4d;border-color:#0066ff;color:#4da6ff;}
+.tf-btn{padding:5px 13px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid #1e3a5f;background:#0d1420;color:#6a8aaa;font-family:inherit;letter-spacing:.08em;transition:all .15s;}
+.tf-btn.on{background:#0d2a4d;border-color:#0066ff;color:#4da6ff;}
+.tab-btn{padding:8px 18px;background:none;border:none;color:#4a6a8a;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-bottom:2px solid transparent;transition:all .2s;}
+.tab-btn.on{color:#4da6ff;border-bottom-color:#0066ff;}
+.card{background:#0d1420;border:1px solid #1e3a5f;border-radius:10px;padding:16px 18px;}
+.sig{background:#0d1420;border:1px solid #1e3a5f;border-radius:8px;padding:13px 15px;transition:border-color .2s;margin-bottom:9px;}
+.sig:hover{border-color:#0066ff44;}
+.inp{background:#0d1420;border:1px solid #1e3a5f;color:#c8d8f0;padding:8px 12px;border-radius:6px;font-family:inherit;font-size:12px;outline:none;transition:border-color .2s;width:100%;}
+.inp:focus{border-color:#0066ff66;}
+.label{font-size:10px;color:#4a6a8a;letter-spacing:.1em;margin-bottom:6px;}
+.pbar{height:3px;background:#0d1420;border-radius:2px;overflow:hidden;margin-top:8px;}
+.pfill{height:100%;border-radius:2px;background:linear-gradient(90deg,#0066ff,#00ccff);transition:width .4s ease;}
+.toggle-wrap{position:relative;width:44px;height:24px;cursor:pointer;display:inline-block;}
+.toggle-wrap input{opacity:0;width:0;height:0;position:absolute;}
+.slider{position:absolute;top:0;left:0;right:0;bottom:0;background:#1e3a5f;border-radius:12px;transition:.3s;cursor:pointer;}
+.slider:before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s;}
+.toggle-wrap input:checked+.slider{background:#0066ff;}
+.toggle-wrap input:checked+.slider:before{transform:translateX(20px);}
+.stat-box{background:#0d1a2a;border-radius:7px;padding:12px;text-align:center;border:1px solid #1e3a5f;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(0,229,160,.3)}100%{box-shadow:0 0 0 8px rgba(0,229,160,0)}}
+.ai-in{animation:fadeIn .3s ease forwards;}
+.dot{animation:pulse 1s infinite;}
+.live{animation:ring 1.2s infinite,pulse 1s infinite;}
+#header{background:#080c14;border-bottom:1px solid #1e3a5f;padding:13px 22px;display:flex;align-items:center;gap:14px;}
+#tabs{border-bottom:1px solid #1e3a5f;padding:0 22px;display:flex;gap:2px;}
+#main{padding:18px 22px;max-width:980px;margin:0 auto;}
+.two-col{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start;}
+.chat-msg-wrap{display:flex;margin-bottom:12px;}
+.chat-msg{max-width:76%;padding:9px 13px;border-radius:8px;font-size:13px;line-height:1.65;}
+.empty-state{text-align:center;padding:50px 20px;color:#2a4a6a;border:1px dashed #1e3a5f;border-radius:10px;}
+.schedule-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:8px;margin-bottom:16px;border:1px solid #1e3a5f;background:#0d1a2a;}
+@media(max-width:700px){.two-col{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div style="width:36px;height:36px;background:linear-gradient(135deg,#0066ff,#00ccff);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">₣</div>
+  <div>
+    <div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e8f4ff;letter-spacing:.02em">FOREX SIGNAL BOT</div>
+    <div style="font-size:10px;color:#4a6a8a;letter-spacing:.1em">AI-POWERED · AUTO-SCHEDULE · TELEGRAM ALERTS</div>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:20px;align-items:center">
+    <div id="hdr-countdown" style="text-align:right;display:none">
+      <div style="font-size:10px;color:#4a6a8a">QUÉT TIẾP THEO</div>
+      <div id="hdr-countdown-val" style="font-size:13px;font-weight:700;color:#00e5a0">--</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:10px;color:#4a6a8a">TG ĐÃ GỬI</div>
+      <div id="hdr-tg-count" style="font-size:13px;font-weight:700;color:#4da6ff">0</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <div id="status-dot" style="width:7px;height:7px;border-radius:50%;background:#2a4a6a"></div>
+      <span id="status-txt" style="font-size:11px;color:#4a6a8a">STANDBY</span>
+    </div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div id="tabs">
+  <button class="tab-btn on" onclick="showTab('scanner')">📡 Scanner</button>
+  <button class="tab-btn" onclick="showTab('telegram')">✈️ Telegram</button>
+  <button class="tab-btn" onclick="showTab('schedule')">⏱ Lịch</button>
+  <button class="tab-btn" onclick="showTab('chat')">💬 AI Chat</button>
+</div>
+
+<div id="main">
+
+  <!-- ═══════════════ SCANNER TAB ═══════════════ -->
+  <div id="tab-scanner">
+    <div class="card" style="margin-bottom:18px">
+      <div class="label">CHỌN CẶP TIỀN TỆ</div>
+      <div id="pairs-wrap" style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px"></div>
+      <div style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap">
+        <div>
+          <div class="label">KHUNG THỜI GIAN</div>
+          <div id="tf-wrap" style="display:flex;gap:5px"></div>
+        </div>
+        <button class="btn" id="scan-btn" onclick="runScan(false)">🔍 Quét ngay</button>
+        <div style="font-size:11px;color:#4a6a8a" id="pairs-count">3 cặp · Tín hiệu ≥70% → Telegram</div>
+      </div>
+      <div id="progress-wrap" style="display:none;margin-top:14px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#4a6a8a;margin-bottom:5px">
+          <span>Tiến độ</span><span id="progress-pct">0%</span>
+        </div>
+        <div class="pbar"><div class="pfill" id="pfill" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <div id="signals-empty" class="empty-state">
+          <div style="font-size:38px;margin-bottom:10px">📡</div>
+          <div style="font-size:12px">Chọn cặp và nhấn Quét ngay</div>
+        </div>
+        <div id="signals-list"></div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="label">🤖 PHÂN TÍCH AI</div>
+          <div id="ai-box" style="font-size:12px;line-height:1.75;color:#2a4a6a;text-align:center;padding:14px 0">Chạy quét để nhận phân tích</div>
+        </div>
+        <div class="card">
+          <div class="label">📋 NHẬT KÝ</div>
+          <div id="log-box" style="height:220px;overflow-y:auto;font-size:11px">
+            <div style="color:#2a4a6a;text-align:center;padding-top:36px">Chưa có nhật ký</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ TELEGRAM TAB ═══════════════ -->
+  <div id="tab-telegram" style="display:none;max-width:520px">
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e8f4ff;margin-bottom:4px">✈️ Cấu hình Telegram</div>
+      <div style="font-size:11px;color:#4a6a8a;margin-bottom:20px">Bot sẽ gửi top tín hiệu có strength ≥ 70% vào Telegram của bạn.</div>
+      <div style="margin-bottom:14px">
+        <div class="label">BOT TOKEN</div>
+        <input class="inp" type="password" id="inp-token" placeholder="1234567890:ABCdefGHI..." value="8673072271:AAEcH9VRd0W7PXJXbSkKbUr8p1GYUFWZ74g"/>
+        <div style="font-size:10px;color:#2a4a6a;margin-top:4px">Lấy từ @BotFather trên Telegram</div>
+      </div>
+      <div style="margin-bottom:20px">
+        <div class="label">CHAT ID / GROUP ID</div>
+        <input class="inp" id="inp-chatid" placeholder="-1001234567890 hoặc @username" value="767989979"/>
+        <div style="font-size:10px;color:#2a4a6a;margin-top:4px">Dùng @userinfobot để lấy Chat ID của bạn</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-green btn-sm" onclick="saveTg()">💾 Lưu cấu hình</button>
+        <button class="btn btn-sm" onclick="testTg()">🧪 Gửi tin thử</button>
+        <span id="tg-status" style="font-size:12px"></span>
+      </div>
+      <div id="tg-ok" style="margin-top:14px;padding:8px 12px;background:#00e5a011;border:1px solid #00e5a033;border-radius:6px;font-size:11px;color:#00e5a0">
+        ✅ Telegram đã kết nối — sẵn sàng nhận tín hiệu
+      </div>
+    </div>
+    <div class="card">
+      <div class="label">📋 HƯỚNG DẪN LẤY BOT TOKEN</div>
+      <div style="font-size:12px;line-height:1.8;color:#8aabcc">
+        <div>1. Mở Telegram → tìm <span style="color:#4da6ff">@BotFather</span></div>
+        <div>2. Gõ <span style="color:#4da6ff">/newbot</span> → đặt tên bot</div>
+        <div>3. Copy token dạng <span style="color:#4da6ff">123456:ABC-DEF...</span></div>
+        <div style="margin-top:10px">📋 <strong style="color:#e8f4ff">Lấy Chat ID:</strong></div>
+        <div>• Nhắn tin cho <span style="color:#4da6ff">@userinfobot</span> → lấy ID cá nhân</div>
+        <div>• Hoặc thêm bot vào group → gọi <span style="color:#4da6ff">/id</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ SCHEDULE TAB ═══════════════ -->
+  <div id="tab-schedule" style="display:none;max-width:520px">
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e8f4ff;margin-bottom:16px">⏱ Lịch quét tự động</div>
+      <div style="margin-bottom:18px">
+        <div class="label">TẦN SUẤT QUÉT</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="sched-btns"></div>
+      </div>
+      <div class="schedule-row" id="auto-row">
+        <div>
+          <div id="auto-status-txt" style="font-size:13px;font-weight:700;color:#c8d8f0">⚪ Auto-scan tắt</div>
+          <div id="auto-sub-txt" style="font-size:11px;color:#4a6a8a;margin-top:2px">Bật để tự động quét theo lịch</div>
+        </div>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="auto-toggle" onchange="toggleAuto(this.checked)"/>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="stat-box"><div id="stat-scans" style="font-size:22px;font-weight:800;color:#4da6ff;font-family:Syne,sans-serif">0</div><div style="font-size:10px;color:#4a6a8a;margin-top:3px">Tổng lần quét</div></div>
+        <div class="stat-box"><div id="stat-tg" style="font-size:22px;font-weight:800;color:#00e5a0;font-family:Syne,sans-serif">0</div><div style="font-size:10px;color:#4a6a8a;margin-top:3px">TG đã gửi</div></div>
+        <div class="stat-box"><div id="stat-pairs" style="font-size:22px;font-weight:800;color:#ffaa00;font-family:Syne,sans-serif">3</div><div style="font-size:10px;color:#4a6a8a;margin-top:3px">Cặp theo dõi</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="label">⚙️ BỘ LỌC TÍN HIỆU</div>
+      <div style="font-size:12px;line-height:1.8;color:#8aabcc;margin-bottom:10px">
+        Chỉ gửi Telegram khi tín hiệu đạt <span style="color:#ffaa00;font-weight:700">strength ≥ 70%</span>.
+      </div>
+      <div style="font-size:11px;color:#4a6a8a">
+        Mỗi lần quét bot sẽ:<br>
+        1. Phân tích tất cả cặp đã chọn<br>
+        2. AI chọn top 1-3 cơ hội tốt nhất<br>
+        3. Gửi Telegram kèm SL/TP và phân tích<br>
+        4. Nếu không có tín hiệu đủ mạnh → không gửi
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ CHAT TAB ═══════════════ -->
+  <div id="tab-chat" style="display:none">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div id="chat-box" style="height:500px;overflow-y:auto;padding:18px;display:flex;flex-direction:column"></div>
+      <div style="padding:12px 18px;border-top:1px solid #1e3a5f;display:flex;gap:10px">
+        <input class="inp" id="chat-input" placeholder="Hỏi về phân tích forex, chiến lược, quản lý rủi ro..." onkeydown="if(event.key==='Enter')sendChat()"/>
+        <button class="btn btn-sm" onclick="sendChat()">Gửi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DISCLAIMER -->
+  <div style="margin-top:18px;padding:9px 14px;background:#0d1420;border-radius:7px;border:1px solid #ff4d6d22">
+    <span style="color:#ff4d6d;font-size:10px;font-weight:700;letter-spacing:.1em">⚠️ DISCLAIMER: </span>
+    <span style="color:#4a6a8a;font-size:10px">Công cụ phân tích tham khảo. Không phải lời khuyên đầu tư. Forex có rủi ro cao — chỉ dùng vốn bạn có thể mất.</span>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────
+const PAIRS     = ["EUR/USD","GBP/USD","USD/JPY","AUD/USD","USD/CAD","EUR/GBP","NZD/USD","USD/CHF","EUR/JPY","GBP/JPY"];
+const TIMEFRAMES= ["M15","H1","H4","D1"];
+const SCHEDULES = [{label:"15 phút",value:15},{label:"30 phút",value:30},{label:"1 giờ",value:60},{label:"4 giờ",value:240}];
+const MIN_STR   = 70;
+
+// ── STATE ────────────────────────────────────────────────────────
+let selPairs    = ["EUR/USD","GBP/USD","USD/JPY"];
+let selTf       = "H1";
+let selSched    = 60;
+let autoOn      = false;
+let scanning    = false;
+let scanCount   = 0;
+let tgSentCount = 0;
+let autoTimer   = null;
+let countdown   = 0;
+let cdTimer     = null;
+let chatHistory = [{role:"assistant",content:"Xin chào! Tôi là Forex AI. Hỏi tôi về phân tích, chiến lược, hoặc quản lý rủi ro."}];
+
+// ── INIT ────────────────────────────────────────────────────────
+function init() {
+  // Pairs chips
+  const pw = document.getElementById("pairs-wrap");
+  PAIRS.forEach(p => {
+    const b = document.createElement("button");
+    b.className = "chip" + (selPairs.includes(p)?" on":"");
+    b.textContent = p;
+    b.onclick = () => togglePair(p, b);
+    pw.appendChild(b);
+  });
+  // TF buttons
+  const tw = document.getElementById("tf-wrap");
+  TIMEFRAMES.forEach(t => {
+    const b = document.createElement("button");
+    b.className = "tf-btn" + (t===selTf?" on":"");
+    b.textContent = t;
+    b.onclick = () => { selTf=t; tw.querySelectorAll(".tf-btn").forEach(x=>x.classList.remove("on")); b.classList.add("on"); };
+    tw.appendChild(b);
+  });
+  // Schedule buttons
+  const sb = document.getElementById("sched-btns");
+  SCHEDULES.forEach(s => {
+    const b = document.createElement("button");
+    b.className = "tf-btn" + (s.value===selSched?" on":"");
+    b.textContent = s.label;
+    b.onclick = () => { selSched=s.value; sb.querySelectorAll(".tf-btn").forEach(x=>x.classList.remove("on")); b.classList.add("on"); if(autoOn){restartAuto();} };
+    sb.appendChild(b);
+  });
+  // Chat init
+  renderChat();
+}
+
+function togglePair(p, btn) {
+  if(selPairs.includes(p)) selPairs = selPairs.filter(x=>x!==p);
+  else selPairs.push(p);
+  btn.classList.toggle("on", selPairs.includes(p));
+  document.getElementById("pairs-count").textContent = selPairs.length + " cặp · Tín hiệu ≥70% → Telegram";
+  document.getElementById("stat-pairs").textContent = selPairs.length;
+}
+
+// ── TAB ──────────────────────────────────────────────────────────
+function showTab(name) {
+  ["scanner","telegram","schedule","chat"].forEach(t => {
+    document.getElementById("tab-"+t).style.display = t===name?"block":"none";
+  });
+  document.querySelectorAll(".tab-btn").forEach((b,i) => {
+    b.classList.toggle("on", ["scanner","telegram","schedule","chat"][i]===name);
+  });
+}
+
+// ── MOCK DATA ────────────────────────────────────────────────────
+const BASE_PRICES = {"EUR/USD":1.0850,"GBP/USD":1.2650,"USD/JPY":149.50,"AUD/USD":0.6520,"USD/CAD":1.3680,"EUR/GBP":0.8580,"NZD/USD":0.5980,"USD/CHF":0.9020,"EUR/JPY":162.30,"GBP/JPY":189.40};
+function mockPrice(pair) { return (BASE_PRICES[pair]+(Math.random()-.5)*.002).toFixed(4); }
+function mockSparkline() { let v=50,pts=[]; for(let i=0;i<20;i++){v+=(Math.random()-.5)*8;v=Math.max(10,Math.min(90,v));pts.push(v);} return pts; }
+
+// ── LOG ──────────────────────────────────────────────────────────
+let logLines = [];
+function addLog(msg, type="info") {
+  const time = new Date().toLocaleTimeString("vi-VN");
+  logLines = [...logLines.slice(-80), {msg,type,time}];
+  const box = document.getElementById("log-box");
+  box.innerHTML = logLines.map(l => {
+    const c = l.type==="buy"?"#00e5a0":l.type==="sell"?"#ff4d6d":l.type==="success"?"#4da6ff":l.type==="error"?"#ff4d6d":"#6a8aaa";
+    return `<div style="padding:2px 0;border-bottom:1px solid #0d1a2a;color:${c}"><span style="color:#2a4a6a;margin-right:5px">${l.time}</span>${l.msg}</div>`;
+  }).join("");
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── STATUS DOT ───────────────────────────────────────────────────
+function setStatus(state) {
+  const dot = document.getElementById("status-dot");
+  const txt = document.getElementById("status-txt");
+  dot.className = "";
+  if(state==="scanning"){ dot.style.background="#ffaa00"; dot.className="dot"; txt.textContent="SCANNING"; }
+  else if(state==="auto"){ dot.style.background="#00e5a0"; dot.className="live"; txt.textContent="AUTO ON"; }
+  else { dot.style.background="#2a4a6a"; txt.textContent="STANDBY"; }
+}
+
+// ── SPARKLINE SVG ────────────────────────────────────────────────
+function sparklineSVG(data, dir) {
+  const max=Math.max(...data), min=Math.min(...data);
+  const n = v => 28 - ((v-min)/(max-min||1))*24;
+  const pts = data.map((v,i)=>`${(i/(data.length-1))*80},${n(v)}`).join(" ");
+  const col = dir==="BUY"?"#00e5a0":"#ff4d6d";
+  return `<svg width="80" height="28" style="display:block"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+// ── SIGNAL CARD HTML ─────────────────────────────────────────────
+function signalCardHTML(s) {
+  const col = s.direction==="BUY"?"#00e5a0":"#ff4d6d";
+  const scol = s.strength>75?"#00e5a0":s.strength>60?"#ffaa00":"#ff4d6d";
+  const tgBadge = s.strength>=MIN_STR ? `<span style="font-size:9px;color:#ffaa00;border:1px solid #ffaa0044;padding:1px 6px;border-radius:3px">📨 TG</span>` : "";
+  return `<div class="sig ai-in" style="border-left:3px solid ${col}">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;flex-wrap:wrap">
+          <span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px;color:#e8f4ff">${s.pair}</span>
+          <span style="padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:${s.direction==="BUY"?"#00e5a022":"#ff4d6d22"};color:${col};letter-spacing:.1em">${s.direction}</span>
+          ${tgBadge}
+          <span style="font-size:10px;color:#4a6a8a">${s.tf} · ${s.time}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;font-size:11px;margin-bottom:9px">
+          <div><div style="color:#4a6a8a;margin-bottom:1px">PRICE</div><div style="color:#c8d8f0;font-weight:600">${s.price}</div></div>
+          <div><div style="color:#4a6a8a;margin-bottom:1px">RSI</div><div style="color:#c8d8f0;font-weight:600">${s.rsi}</div></div>
+          <div><div style="color:#4a6a8a;margin-bottom:1px">MACD</div><div style="color:#c8d8f0;font-weight:600">${s.macd}</div></div>
+          <div><div style="color:#4a6a8a;margin-bottom:1px">EMA</div><div style="color:#c8d8f0;font-weight:600">${s.ema}</div></div>
+        </div>
+        <div style="display:flex;gap:14px;font-size:11px">
+          <span style="color:#4a6a8a">SL: <span style="color:#ff4d6d">${s.sl}</span></span>
+          <span style="color:#4a6a8a">TP: <span style="color:#00e5a0">${s.tp}</span></span>
+          <span style="color:#4a6a8a">Strength: <span style="color:${scol}">${s.strength}%</span></span>
+        </div>
+      </div>
+      ${sparklineSVG(s.sparkline, s.direction)}
+    </div>
+  </div>`;
+}
+
+// ── CORE SCAN ────────────────────────────────────────────────────
+async function runScan(isAuto=false) {
+  if(scanning || selPairs.length===0) return;
+  scanning=true;
+  document.getElementById("scan-btn").disabled=true;
+  document.getElementById("signals-empty").style.display="none";
+  document.getElementById("signals-list").innerHTML="";
+  document.getElementById("progress-wrap").style.display="block";
+  document.getElementById("ai-box").innerHTML=`<span style="color:#4a6a8a" class="dot">Chờ kết quả quét...</span>`;
+  setStatus("scanning");
+  addLog(isAuto?"🔄 Auto-scan bắt đầu...":"🚀 Bắt đầu quét thị trường...","info");
+
+  const mockSignals=[];
+  for(let i=0; i<selPairs.length; i++) {
+    const pair=selPairs[i];
+    await sleep(400);
+    const pct=Math.round(((i+1)/selPairs.length)*100);
+    document.getElementById("pfill").style.width=pct+"%";
+    document.getElementById("progress-pct").textContent=pct+"%";
+    addLog(`📡 Phân tích ${pair} [${selTf}]...`,"scan");
+
+    const price=mockPrice(pair);
+    const rsi=(Math.random()*40+30).toFixed(1);
+    const macd=(Math.random()-.5).toFixed(4);
+    const ema=Math.random()>.5?"Bullish":"Bearish";
+    const bb=Math.random()>.5?"Upper":"Lower";
+    const strength=Math.floor(Math.random()*40+60);
+    const direction=rsi<40?"BUY":rsi>60?"SELL":Math.random()>.5?"BUY":"SELL";
+    const sig={pair,price,rsi,macd,ema,bb,strength,direction,tf:selTf,sparkline:mockSparkline(),
+      sl:direction==="BUY"?(parseFloat(price)-.003).toFixed(4):(parseFloat(price)+.003).toFixed(4),
+      tp:direction==="BUY"?(parseFloat(price)+.006).toFixed(4):(parseFloat(price)-.006).toFixed(4),
+      time:new Date().toLocaleTimeString("vi-VN")};
+    mockSignals.push(sig);
+    document.getElementById("signals-list").insertAdjacentHTML("beforeend", signalCardHTML(sig));
+    addLog(`${direction==="BUY"?"🟢":"🔴"} ${pair}: ${direction} | ${strength}% | RSI ${rsi}`, direction==="BUY"?"buy":"sell");
+  }
+
+  // AI Analysis
+  addLog("🤖 AI đang phân tích...","info");
+  document.getElementById("ai-box").innerHTML=`<span style="color:#4a6a8a" class="dot">Đang phân tích...</span>`;
+  let analysisText="";
+  try {
+    const prompt=`Bạn là chuyên gia phân tích forex. Kết quả quét [${selTf}]:\n`+
+      mockSignals.map(s=>`- ${s.pair}: ${s.direction} | Price ${s.price} | RSI ${s.rsi} | MACD ${s.macd} | EMA ${s.ema} | BB ${s.bb} | Strength ${s.strength}%`).join("\n")+
+      `\n\n1. Phân tích 3-4 câu tổng quan thị trường.\n2. Liệt kê TOP 1-3 cơ hội tiềm năng nhất (strength ≥ ${MIN_STR}%, chỉ rõ pair + lý do ngắn gọn).\n3. Cảnh báo rủi ro (1 câu).\nTrả lời tiếng Việt, súc tích.`;
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})
+    });
+    const d=await res.json();
+    analysisText=d.content?.map(c=>c.text||"").join("")||"Không thể tải phân tích.";
+    document.getElementById("ai-box").style.color="#a8c4e0";
+    document.getElementById("ai-box").style.textAlign="left";
+    document.getElementById("ai-box").style.whiteSpace="pre-line";
+    document.getElementById("ai-box").textContent=analysisText;
+    addLog("✨ Phân tích AI hoàn tất!","success");
+  } catch {
+    analysisText="Lỗi kết nối AI API.";
+    document.getElementById("ai-box").textContent=analysisText;
+    addLog("❌ Lỗi AI API","error");
+  }
+
+  // Telegram
+  const topSigs = mockSignals.filter(s=>s.strength>=MIN_STR).sort((a,b)=>b.strength-a.strength).slice(0,3);
+  const token=document.getElementById("inp-token").value.trim();
+  const chatId=document.getElementById("inp-chatid").value.trim();
+  scanCount++;
+  document.getElementById("stat-scans").textContent=scanCount;
+  if(token && chatId && topSigs.length>0){
+    await sendTelegram(topSigs, analysisText, selTf, token, chatId);
+  } else if(token && chatId && topSigs.length===0){
+    addLog("📭 Không có tín hiệu đủ mạnh để gửi Telegram","info");
+  } else {
+    addLog("⚠️ Chưa cấu hình Telegram — bỏ qua gửi tin","info");
+  }
+
+  scanning=false;
+  document.getElementById("scan-btn").disabled=false;
+  document.getElementById("progress-wrap").style.display="none";
+  document.getElementById("pfill").style.width="0%";
+  setStatus(autoOn?"auto":"standby");
+  addLog(`🏁 Quét hoàn tất! (lần #${scanCount})`,"success");
+}
+
+// ── TELEGRAM ─────────────────────────────────────────────────────
+async function sendTelegram(topSigs, analysis, tf, token, chatId) {
+  const emoji=s=>s.direction==="BUY"?"🟢":"🔴";
+  const bar=s=>"█".repeat(Math.round(s.strength/10))+"░".repeat(10-Math.round(s.strength/10));
+  const header=`🤖 *FOREX SIGNAL BOT* — ${new Date().toLocaleString("vi-VN")}\n📊 Khung: *${tf}* | Top ${topSigs.length} cơ hội\n${"─".repeat(28)}`;
+  const lines=topSigs.map((s,i)=>`\n${i+1}. ${emoji(s)} *${s.pair}* — ${s.direction}\n   💰 Price: \`${s.price}\`\n   🎯 TP: \`${s.tp}\`  |  🛡 SL: \`${s.sl}\`\n   📈 RSI: ${s.rsi}  |  EMA: ${s.ema}\n   💪 Strength: ${s.strength}%  ${bar(s)}`).join("");
+  const shortAI=analysis.split("\n").slice(0,5).join("\n").slice(0,400);
+  const footer=`\n${"─".repeat(28)}\n🧠 *Phân tích AI:*\n${shortAI}\n\n⚠️ _Không phải lời khuyên đầu tư. Quản lý rủi ro!_`;
+  try {
+    const res=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({chat_id:chatId,text:header+lines+footer,parse_mode:"Markdown"})
+    });
+    const d=await res.json();
+    if(d.ok){
+      tgSentCount++;
+      document.getElementById("hdr-tg-count").textContent=tgSentCount;
+      document.getElementById("stat-tg").textContent=tgSentCount;
+      addLog(`📨 Telegram: đã gửi ${topSigs.length} tín hiệu!`,"success");
+    } else {
+      addLog(`❌ Telegram lỗi: ${d.description}`,"error");
+    }
+  } catch { addLog("❌ Lỗi kết nối Telegram","error"); }
+}
+
+function saveTg() {
+  document.getElementById("tg-ok").style.display="block";
+  addLog("💾 Đã lưu cấu hình Telegram","success");
+}
+
+async function testTg() {
+  const token=document.getElementById("inp-token").value.trim();
+  const chatId=document.getElementById("inp-chatid").value.trim();
+  const s=document.getElementById("tg-status");
+  if(!token||!chatId){s.style.color="#ff4d6d";s.textContent="Nhập Token và Chat ID trước!";return;}
+  s.style.color="#4a6a8a";s.textContent="Đang gửi...";
+  try {
+    const res=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({chat_id:chatId,text:"✅ *Forex Bot* kết nối thành công\\!\\nBot đã sẵn sàng gửi tín hiệu cho bạn 🚀",parse_mode:"Markdown"})
+    });
+    const d=await res.json();
+    s.style.color=d.ok?"#00e5a0":"#ff4d6d";
+    s.textContent=d.ok?"✅ Gửi thành công!":"❌ "+d.description;
+  } catch { s.style.color="#ff4d6d";s.textContent="❌ Lỗi kết nối"; }
+  setTimeout(()=>s.textContent="",3000);
+}
+
+// ── AUTO SCHEDULE ────────────────────────────────────────────────
+function toggleAuto(on) {
+  autoOn=on;
+  clearInterval(autoTimer); clearInterval(cdTimer); autoTimer=null; cdTimer=null;
+  const row=document.getElementById("auto-row");
+  const stxt=document.getElementById("auto-status-txt");
+  const sub=document.getElementById("auto-sub-txt");
+  const hdrCD=document.getElementById("hdr-countdown");
+  if(on){
+    row.style.background="#00e5a008"; row.style.borderColor="#00e5a033";
+    stxt.style.color="#00e5a0"; stxt.textContent="🟢 Auto-scan đang chạy";
+    setStatus("auto");
+    hdrCD.style.display="block";
+    countdown=selSched*60;
+    document.getElementById("hdr-countdown-val").textContent=fmtCD(countdown);
+    sub.textContent=`Quét mỗi ${SCHEDULES.find(s=>s.value===selSched).label} · Tiếp theo: ${fmtCD(countdown)}`;
+    cdTimer=setInterval(()=>{
+      countdown--;
+      document.getElementById("hdr-countdown-val").textContent=fmtCD(countdown);
+      sub.textContent=`Quét mỗi ${SCHEDULES.find(s=>s.value===selSched).label} · Tiếp theo: ${fmtCD(countdown)}`;
+      if(countdown<=0){ countdown=selSched*60; runScan(true); }
+    },1000);
+  } else {
+    row.style.background="#0d1a2a"; row.style.borderColor="#1e3a5f";
+    stxt.style.color="#c8d8f0"; stxt.textContent="⚪ Auto-scan tắt";
+    sub.textContent="Bật để tự động quét theo lịch";
+    hdrCD.style.display="none";
+    setStatus("standby");
+  }
+}
+
+function restartAuto() {
+  if(!autoOn) return;
+  toggleAuto(false);
+  setTimeout(()=>{ document.getElementById("auto-toggle").checked=true; toggleAuto(true); },100);
+}
+
+function fmtCD(s) {
+  if(s>=3600) return `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m`;
+  if(s>=60)   return `${Math.floor(s/60)}m ${s%60}s`;
+  return `${s}s`;
+}
+
+// ── CHAT ─────────────────────────────────────────────────────────
+function renderChat() {
+  const box=document.getElementById("chat-box");
+  box.innerHTML=chatHistory.map(m=>{
+    const isUser=m.role==="user";
+    return `<div class="chat-msg-wrap" style="justify-content:${isUser?"flex-end":"flex-start"}">
+      <div class="chat-msg" style="background:${isUser?"linear-gradient(135deg,#0044bb,#0066ff)":"#131c2e"};border:${isUser?"none":"1px solid #1e3a5f"};color:${isUser?"white":"#c8d8f0"}">
+        ${!isUser?`<div style="font-size:10px;color:#4a6a8a;margin-bottom:5px;letter-spacing:.08em">🤖 FOREX AI</div>`:""}
+        ${m.content.replace(/\n/g,"<br>")}
+      </div>
+    </div>`;
+  }).join("");
+  box.scrollTop=box.scrollHeight;
+}
+
+async function sendChat() {
+  const inp=document.getElementById("chat-input");
+  const msg=inp.value.trim();
+  if(!msg) return;
+  inp.value="";
+  chatHistory.push({role:"user",content:msg});
+  renderChat();
+  // loading indicator
+  const box=document.getElementById("chat-box");
+  box.insertAdjacentHTML("beforeend",`<div id="chat-loading" style="display:flex"><div class="card dot" style="padding:9px 13px;font-size:12px;color:#4a6a8a">Đang phân tích...</div></div>`);
+  box.scrollTop=box.scrollHeight;
+  try {
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
+        system:"Bạn là chuyên gia forex 10 năm kinh nghiệm. Trả lời tiếng Việt, ngắn gọn, chuyên nghiệp. Luôn nhắc quản lý rủi ro.",
+        messages:chatHistory.map(m=>({role:m.role,content:m.content}))
+      })
+    });
+    const d=await res.json();
+    chatHistory.push({role:"assistant",content:d.content?.map(c=>c.text||"").join("")||"Lỗi phản hồi."});
+  } catch {
+    chatHistory.push({role:"assistant",content:"Lỗi kết nối. Thử lại sau."});
+  }
+  const ld=document.getElementById("chat-loading");
+  if(ld) ld.remove();
+  renderChat();
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+init();
+</script>
+</body>
+</html>
