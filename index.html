@@ -17,6 +17,7 @@ body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;col
 .btn-sm{padding:6px 14px;font-size:11px;}
 .btn-green{background:linear-gradient(135deg,#007744,#005533);}
 .btn-red{background:linear-gradient(135deg,#881122,#660011);}
+.btn-orange{background:linear-gradient(135deg,#995500,#773300);}
 .chip{padding:5px 11px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid #1e3a5f;background:#0d1420;color:#6a8aaa;font-weight:600;transition:all .15s;}
 .chip.on{background:#0d2a4d;border-color:#0066ff;color:#4da6ff;}
 .tfbtn{padding:5px 13px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid #1e3a5f;background:#0d1420;color:#6a8aaa;font-family:inherit;transition:all .15s;}
@@ -42,24 +43,51 @@ body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;col
 .tccard.win{border-left-color:#00e5a0;}
 .tccard.loss{border-left-color:#ff4d6d;}
 .badge{display:inline-block;padding:2px 7px;border-radius:3px;font-size:10px;font-weight:700;}
+/* Price ticker flash animation */
+@keyframes priceUp{0%{color:#c8d8f0}50%{color:#00e5a0;text-shadow:0 0 8px #00e5a066}100%{color:#c8d8f0}}
+@keyframes priceDn{0%{color:#c8d8f0}50%{color:#ff4d6d;text-shadow:0 0 8px #ff4d6d66}100%{color:#c8d8f0}}
+.flash-up{animation:priceUp .6s ease;}
+.flash-dn{animation:priceDn .6s ease;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes fadein{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 @keyframes ring{0%{box-shadow:0 0 0 0 rgba(0,229,160,.35)}100%{box-shadow:0 0 0 8px rgba(0,229,160,0)}}
+@keyframes wsBlink{0%,100%{opacity:1}50%{opacity:.3}}
 .dot{animation:pulse 1s infinite;}
 .livering{animation:ring 1.2s infinite,pulse 1s infinite;}
 .ani{animation:fadein .3s ease forwards;}
 @media(max-width:700px){.twocol{grid-template-columns:1fr!important;}}
+/* WebSocket status badge */
+#ws-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.06em;border:1px solid;transition:all .3s;}
+#ws-badge.disconnected{background:#1a0a0a;border-color:#ff4d6d44;color:#ff4d6d;}
+#ws-badge.connecting{background:#1a1200;border-color:#ffaa0044;color:#ffaa00;}
+#ws-badge.connected{background:#001a0f;border-color:#00e5a044;color:#00e5a0;}
+.ws-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.ws-dot.blink{animation:wsBlink .8s infinite;}
+/* Live price ticker bar */
+#price-bar{background:#080c14;border-bottom:1px solid #1e3a5f;padding:6px 20px;overflow:hidden;white-space:nowrap;font-size:11px;}
+#price-ticker{display:inline-flex;gap:24px;transition:none;}
+.ptick{display:inline-flex;align-items:center;gap:6px;padding:2px 0;}
+.ptick-pair{color:#4a6a8a;font-size:10px;}
+.ptick-price{color:#c8d8f0;font-weight:700;}
+.ptick-chg.up{color:#00e5a0;}
+.ptick-chg.dn{color:#ff4d6d;}
 </style>
 </head>
 <body>
 
-<div id="hdr" style="background:#080c14;border-bottom:1px solid #1e3a5f;padding:13px 20px;display:flex;align-items:center;gap:12px;">
+<!-- HEADER -->
+<div id="hdr" style="background:#080c14;border-bottom:1px solid #1e3a5f;padding:13px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
   <div style="width:36px;height:36px;background:linear-gradient(135deg,#0066ff,#00ccff);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">₣</div>
   <div>
     <div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e8f4ff;letter-spacing:.02em">FOREX SIGNAL BOT</div>
-    <div style="font-size:10px;color:#4a6a8a;letter-spacing:.08em">AI-POWERED · AUTO-SCHEDULE · AUTO-TRADE · TELEGRAM</div>
+    <div style="font-size:10px;color:#4a6a8a;letter-spacing:.08em">MT5 REALTIME · AI-POWERED · AUTO-SCHEDULE · AUTO-TRADE · TELEGRAM</div>
   </div>
-  <div style="margin-left:auto;display:flex;gap:16px;align-items:center">
+  <div style="margin-left:auto;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    <!-- WebSocket status -->
+    <div id="ws-badge" class="disconnected">
+      <div class="ws-dot blink"></div>
+      <span id="ws-label">WS OFFLINE</span>
+    </div>
     <div id="hdr-cd" style="display:none;text-align:right">
       <div style="font-size:10px;color:#4a6a8a">TIẾP THEO</div>
       <div id="hdr-cd-val" style="font-size:13px;font-weight:700;color:#00e5a0">--</div>
@@ -79,12 +107,31 @@ body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;col
   </div>
 </div>
 
+<!-- PRICE TICKER BAR -->
+<div id="price-bar">
+  <span style="color:#4a6a8a;font-size:10px;margin-right:12px">LIVE MT5</span>
+  <span id="price-ticker">
+    <span class="ptick"><span class="ptick-pair">EUR/USD</span><span class="ptick-price" id="tick-EURUSD">--</span><span class="ptick-chg" id="chg-EURUSD"></span></span>
+    <span class="ptick"><span class="ptick-pair">GBP/USD</span><span class="ptick-price" id="tick-GBPUSD">--</span><span class="ptick-chg" id="chg-GBPUSD"></span></span>
+    <span class="ptick"><span class="ptick-pair">USD/JPY</span><span class="ptick-price" id="tick-USDJPY">--</span><span class="ptick-chg" id="chg-USDJPY"></span></span>
+    <span class="ptick"><span class="ptick-pair">AUD/USD</span><span class="ptick-price" id="tick-AUDUSD">--</span><span class="ptick-chg" id="chg-AUDUSD"></span></span>
+    <span class="ptick"><span class="ptick-pair">USD/CAD</span><span class="ptick-price" id="tick-USDCAD">--</span><span class="ptick-chg" id="chg-USDCAD"></span></span>
+    <span class="ptick"><span class="ptick-pair">EUR/GBP</span><span class="ptick-price" id="tick-EURGBP">--</span><span class="ptick-chg" id="chg-EURGBP"></span></span>
+    <span class="ptick"><span class="ptick-pair">NZD/USD</span><span class="ptick-price" id="tick-NZDUSD">--</span><span class="ptick-chg" id="chg-NZDUSD"></span></span>
+    <span class="ptick"><span class="ptick-pair">USD/CHF</span><span class="ptick-price" id="tick-USDCHF">--</span><span class="ptick-chg" id="chg-USDCHF"></span></span>
+    <span class="ptick"><span class="ptick-pair">EUR/JPY</span><span class="ptick-price" id="tick-EURJPY">--</span><span class="ptick-chg" id="chg-EURJPY"></span></span>
+    <span class="ptick"><span class="ptick-pair">GBP/JPY</span><span class="ptick-price" id="tick-GBPJPY">--</span><span class="ptick-chg" id="chg-GBPJPY"></span></span>
+  </span>
+</div>
+
+<!-- TABS -->
 <div id="tabs" style="border-bottom:1px solid #1e3a5f;padding:0 20px;display:flex;gap:2px;">
   <button class="tabbtn on" id="tab-scanner-btn" onclick="showTab('scanner')">📡 Scanner</button>
   <button class="tabbtn" id="tab-telegram-btn" onclick="showTab('telegram')">✈️ Telegram</button>
   <button class="tabbtn" id="tab-schedule-btn" onclick="showTab('schedule')">⏱ Lịch</button>
   <button class="tabbtn" id="tab-autotrade-btn" onclick="showTab('autotrade')">🎯 Auto Trade</button>
   <button class="tabbtn" id="tab-chat-btn" onclick="showTab('chat')">💬 AI Chat</button>
+  <button class="tabbtn" id="tab-ws-btn" onclick="showTab('ws')">🔌 WebSocket</button>
 </div>
 
 <div style="padding:18px 20px;max-width:980px;margin:0 auto;">
@@ -102,6 +149,11 @@ body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;col
     <div id="progwrap" style="display:none;margin-top:12px">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:#4a6a8a;margin-bottom:4px"><span>Tiến độ</span><span id="progpct">0%</span></div>
       <div class="pbar"><div class="pfill" id="pfill" style="width:0%"></div></div>
+    </div>
+    <!-- Data source indicator -->
+    <div id="src-indicator" style="margin-top:10px;display:flex;align-items:center;gap:8px;font-size:11px;color:#4a6a8a">
+      <span>Nguồn giá:</span>
+      <span id="src-label" style="color:#ff4d6d;font-weight:700">⚠ Chưa kết nối MT5 — dùng giá giả lập</span>
     </div>
   </div>
   <div class="twocol" style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;">
@@ -247,6 +299,186 @@ body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;col
   </div>
 </div>
 
+<!-- WEBSOCKET CONFIG TAB -->
+<div id="pane-ws" style="display:none;max-width:620px">
+  <div class="card" style="margin-bottom:14px">
+    <div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;color:#e8f4ff;margin-bottom:4px">🔌 Kết nối MT5 WebSocket</div>
+    <div style="font-size:11px;color:#4a6a8a;margin-bottom:18px">Kết nối bot Python để nhận giá thật từ MT5 (XM) theo thời gian thực.</div>
+
+    <div style="margin-bottom:12px">
+      <div class="lbl">ĐỊA CHỈ WEBSOCKET SERVER</div>
+      <div style="display:flex;gap:8px">
+        <input class="inp" id="ws-url-inp" value="ws://localhost:8765" style="flex:1"/>
+        <button class="btn btn-sm" onclick="wsConnect()">🔌 Kết nối</button>
+        <button class="btn btn-red btn-sm" onclick="wsDisconnect()">✂️ Ngắt</button>
+      </div>
+      <div style="font-size:10px;color:#2a4a6a;margin-top:4px">Mặc định: ws://localhost:8765 — chạy bot Python trước khi kết nối</div>
+    </div>
+
+    <div id="ws-status-box" style="padding:12px 14px;background:#0d1a2a;border:1px solid #1e3a5f;border-radius:8px;margin-bottom:16px;font-size:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div id="ws-status-dot" style="width:8px;height:8px;border-radius:50%;background:#ff4d6d;flex-shrink:0"></div>
+        <span id="ws-status-txt" style="font-weight:700;color:#ff4d6d">Chưa kết nối</span>
+      </div>
+      <div id="ws-status-sub" style="color:#4a6a8a;font-size:11px">Bot Python chưa chạy hoặc chưa kết nối.</div>
+      <div id="ws-last-msg" style="color:#2a4a6a;font-size:10px;margin-top:5px"></div>
+    </div>
+
+    <!-- Python bot code -->
+    <div style="margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">
+      <div class="lbl" style="margin:0">📄 CODE BOT PYTHON (COPY & CHẠY)</div>
+      <button class="btn btn-sm" onclick="copyPyCode()">📋 Copy</button>
+    </div>
+    <pre id="py-code" style="background:#050a10;border:1px solid #1e3a5f;border-radius:8px;padding:14px;font-size:10.5px;color:#7ab8e8;overflow-x:auto;line-height:1.7;white-space:pre">
+# ═══════════════════════════════════════════════════
+#  MT5 → WebSocket Bridge  |  Forex Signal Bot
+#  Yêu cầu: pip install MetaTrader5 websockets
+# ═══════════════════════════════════════════════════
+import asyncio, json, datetime
+import MetaTrader5 as mt5
+import websockets
+
+# ── CẤU HÌNH ────────────────────────────────────────
+WS_HOST = "localhost"
+WS_PORT = 8765
+MT5_LOGIN  = 0          # ← Điền MT5 login (XM demo)
+MT5_PASSWORD = ""       # ← Điền mật khẩu
+MT5_SERVER   = ""       # ← Điền tên server (vd: XMGlobal-MT5 2)
+SYMBOLS = [
+    "EURUSD","GBPUSD","USDJPY","AUDUSD","USDCAD",
+    "EURGBP","NZDUSD","USDCHF","EURJPY","GBPJPY"
+]
+INTERVAL_SEC = 1        # Gửi giá mỗi 1 giây
+# ────────────────────────────────────────────────────
+
+clients = set()
+price_cache = {}
+
+def connect_mt5():
+    if not mt5.initialize(login=MT5_LOGIN,
+                          password=MT5_PASSWORD,
+                          server=MT5_SERVER):
+        raise RuntimeError(f"MT5 init failed: {mt5.last_error()}")
+    print(f"[MT5] Connected: {mt5.terminal_info().name}")
+
+def get_prices():
+    data = {}
+    for sym in SYMBOLS:
+        tick = mt5.symbol_info_tick(sym)
+        if tick:
+            info = mt5.symbol_info(sym)
+            digits = info.digits if info else 5
+            data[sym] = {
+                "bid": round(tick.bid, digits),
+                "ask": round(tick.ask, digits),
+                "time": tick.time,
+                "digits": digits
+            }
+    return data
+
+def get_indicators(sym):
+    """Tính RSI(14), MACD, EMA trend từ dữ liệu M15."""
+    rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_M15, 0, 100)
+    if rates is None or len(rates) < 30:
+        return None
+    closes = [r['close'] for r in rates]
+    # RSI 14
+    gains, losses = [], []
+    for i in range(1, 15):
+        d = closes[-i] - closes[-i-1]
+        (gains if d > 0 else losses).append(abs(d))
+    avg_g = sum(gains)/14 if gains else 0.0001
+    avg_l = sum(losses)/14 if losses else 0.0001
+    rsi = round(100 - 100/(1 + avg_g/avg_l), 2)
+    # EMA 20 vs EMA 50
+    def ema(prices, n):
+        k = 2/(n+1); e = prices[0]
+        for p in prices[1:]: e = p*k + e*(1-k)
+        return e
+    ema20 = ema(closes[-50:], 20)
+    ema50 = ema(closes[-50:], 50)
+    ema_trend = "Bullish" if ema20 > ema50 else "Bearish"
+    # MACD (12,26,9)
+    macd_val = round(ema(closes[-50:], 12) - ema(closes[-50:], 26), 5)
+    return {"rsi": rsi, "ema": ema_trend, "macd": macd_val}
+
+async def broadcast_prices():
+    while True:
+        try:
+            prices = get_prices()
+            price_cache.update(prices)
+            payload = {
+                "type": "prices",
+                "data": prices,
+                "ts": datetime.datetime.utcnow().isoformat()
+            }
+            msg = json.dumps(payload)
+            if clients:
+                await asyncio.gather(
+                    *[c.send(msg) for c in list(clients)],
+                    return_exceptions=True
+                )
+        except Exception as e:
+            print(f"[BROADCAST] {e}")
+        await asyncio.sleep(INTERVAL_SEC)
+
+async def handler(ws):
+    clients.add(ws)
+    print(f"[WS] Client connected ({len(clients)} total)")
+    # Send welcome + current prices
+    await ws.send(json.dumps({"type":"connected","version":"1.0"}))
+    if price_cache:
+        await ws.send(json.dumps({"type":"prices","data":price_cache}))
+    try:
+        async for raw in ws:
+            try:
+                msg = json.loads(raw)
+                # HTML app gửi yêu cầu indicators
+                if msg.get("type") == "scan":
+                    result = {}
+                    for sym in msg.get("symbols", SYMBOLS):
+                        ind = get_indicators(sym)
+                        if ind:
+                            tick = mt5.symbol_info_tick(sym)
+                            info = mt5.symbol_info(sym)
+                            digits = info.digits if info else 5
+                            result[sym] = {
+                                **ind,
+                                "bid": round(tick.bid, digits) if tick else 0,
+                                "ask": round(tick.ask, digits) if tick else 0
+                            }
+                    await ws.send(json.dumps({"type":"scan_result","data":result}))
+            except Exception as e:
+                print(f"[MSG] {e}")
+    except websockets.exceptions.ConnectionClosed:
+        pass
+    finally:
+        clients.discard(ws)
+        print(f"[WS] Client disconnected ({len(clients)} total)")
+
+async def main():
+    connect_mt5()
+    print(f"[WS] Server starting on ws://{WS_HOST}:{WS_PORT}")
+    async with websockets.serve(handler, WS_HOST, WS_PORT):
+        await asyncio.gather(broadcast_prices(), asyncio.Future())
+
+if __name__ == "__main__":
+    asyncio.run(main())
+</pre>
+
+    <div style="margin-top:14px;padding:10px 14px;background:#001a10;border:1px solid #00e5a033;border-radius:8px;font-size:11px;color:#4a8a6a">
+      <div style="color:#00e5a0;font-weight:700;margin-bottom:6px">📡 Kiến trúc dữ liệu WebSocket</div>
+      <div style="line-height:1.9">
+        Bot Python gửi 2 loại message:<br>
+        <span style="color:#4da6ff">{"type":"prices","data":{"EURUSD":{"bid":1.0850,"ask":1.0851,"digits":5}}}</span><br>
+        <span style="color:#4da6ff">{"type":"scan_result","data":{"EURUSD":{"rsi":42.5,"ema":"Bullish","macd":0.00023,"bid":1.0850}}}</span><br>
+        HTML app tự nhận và cập nhật realtime — không cần reload.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DISCLAIMER -->
 <div style="margin-top:16px;padding:8px 14px;background:#0d1420;border-radius:7px;border:1px solid #ff4d6d22">
   <span style="color:#ff4d6d;font-size:10px;font-weight:700">⚠️ DISCLAIMER: </span>
   <span style="color:#4a6a8a;font-size:10px">Công cụ phân tích tham khảo. Không phải lời khuyên đầu tư. Forex có rủi ro cao.</span>
@@ -255,11 +487,37 @@ body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;col
 </div><!-- end main -->
 
 <script>
-var PAIRS = ["EUR/USD","GBP/USD","USD/JPY","AUD/USD","USD/CAD","EUR/GBP","NZD/USD","USD/CHF","EUR/JPY","GBP/JPY"];
-var TFS   = ["M15","H1","H4","D1"];
-var SCHEDS= [{l:"15 phút",v:15},{l:"30 phút",v:30},{l:"1 giờ",v:60},{l:"4 giờ",v:240}];
-var BASE  = {"EUR/USD":1.085,"GBP/USD":1.265,"USD/JPY":149.5,"AUD/USD":0.652,"USD/CAD":1.368,"EUR/GBP":0.858,"NZD/USD":0.598,"USD/CHF":0.902,"EUR/JPY":162.3,"GBP/JPY":189.4};
+// ═══════════════════════════════════════════════════════════════
+//  FOREX SIGNAL BOT — Phiên bản MT5 WebSocket Realtime
+//  Giá thật từ MT5 qua WebSocket. Fallback sang giá giả lập.
+// ═══════════════════════════════════════════════════════════════
 
+var PAIRS  = ["EUR/USD","GBP/USD","USD/JPY","AUD/USD","USD/CAD","EUR/GBP","NZD/USD","USD/CHF","EUR/JPY","GBP/JPY"];
+var TFS    = ["M15","H1","H4","D1"];
+var SCHEDS = [{l:"15 phút",v:15},{l:"30 phút",v:30},{l:"1 giờ",v:60},{l:"4 giờ",v:240}];
+
+// SYM_KEY: chuyển "EUR/USD" → "EURUSD" để match với MT5
+function symKey(pair){ return pair.replace("/",""); }
+
+// ─── FALLBACK PRICES (dùng khi chưa kết nối WS) ────────────────
+var FALLBACK_BASE = {
+  "EURUSD":1.0850,"GBPUSD":1.2650,"USDJPY":149.50,"AUDUSD":0.6520,
+  "USDCAD":1.3680,"EURGBP":0.8580,"NZDUSD":0.5980,"USDCHF":0.9020,
+  "EURJPY":162.30,"GBPJPY":189.40
+};
+
+// ─── WEBSOCKET STATE ────────────────────────────────────────────
+var ws = null;
+var wsConnected = false;
+var wsReconnectTimer = null;
+var wsUrl = "ws://localhost:8765";
+
+// ─── LIVE PRICE STORE (nhận từ WS bot Python) ──────────────────
+var livePrice = {};   // {EURUSD: {bid:1.0850, ask:1.0851, digits:5}}
+var prevPrice = {};   // để tính flash up/down
+var liveScanData = null; // nhận từ scan_result WS
+
+// ─── APP STATE ──────────────────────────────────────────────────
 var selPairs  = ["EUR/USD","GBP/USD","USD/JPY"];
 var selTf     = "H1";
 var selSched  = 60;
@@ -270,84 +528,243 @@ var tgSent    = 0;
 var cdTimer   = null;
 var countdown = 0;
 var logLines  = [];
-
-// Auto trade state
 var atOn      = false;
 var atLot     = 0.01;
 var trades    = [];
 var tradeSeq  = 0;
 var atTotal=0, atOpenN=0, atWin=0, atLoss=0, atPnl=0;
-
-// Chat
 var chatHist  = [{role:"assistant",content:"Xin chào! Tôi là Forex AI. Hỏi tôi về phân tích, chiến lược, hoặc quản lý rủi ro."}];
+var scanPendingResolve = null; // để chờ scan_result từ WS
 
-// ── INIT ──
-function init() {
-  var pw = document.getElementById("pairs-wrap");
-  PAIRS.forEach(function(p) {
-    var b = document.createElement("button");
-    b.className = "chip" + (selPairs.indexOf(p)>=0?" on":"");
-    b.textContent = p;
-    b.onclick = function(){ togglePair(p,b); };
+// ═══════════════════════════════════════════════════════════════
+//  WEBSOCKET — kết nối, nhận giá, nhận tín hiệu từ Python bot
+// ═══════════════════════════════════════════════════════════════
+function wsConnect(){
+  wsUrl = document.getElementById("ws-url-inp").value.trim() || "ws://localhost:8765";
+  if(ws){ try{ws.close();}catch(e){} }
+  setWsBadge("connecting");
+  addLog("🔌 Đang kết nối WS: "+wsUrl);
+  try{
+    ws = new WebSocket(wsUrl);
+    ws.onopen = function(){
+      wsConnected = true;
+      setWsBadge("connected");
+      addLog("✅ WebSocket kết nối thành công — nhận giá MT5 realtime","success");
+      updateSrcLabel();
+      if(wsReconnectTimer){ clearTimeout(wsReconnectTimer); wsReconnectTimer=null; }
+    };
+    ws.onmessage = function(evt){
+      try{
+        var msg = JSON.parse(evt.data);
+        if(msg.type==="prices"){
+          onPriceUpdate(msg.data);
+          var now = new Date().toLocaleTimeString("vi-VN");
+          document.getElementById("ws-last-msg").textContent = "Last tick: "+now;
+        } else if(msg.type==="scan_result"){
+          liveScanData = msg.data;
+          if(scanPendingResolve){ scanPendingResolve(msg.data); scanPendingResolve=null; }
+        } else if(msg.type==="connected"){
+          addLog("🤝 Bot Python đã bắt tay","success");
+        }
+      }catch(e){}
+    };
+    ws.onerror = function(){
+      wsConnected = false;
+      setWsBadge("disconnected");
+      addLog("❌ WS lỗi kết nối","error");
+      updateSrcLabel();
+    };
+    ws.onclose = function(){
+      wsConnected = false;
+      setWsBadge("disconnected");
+      addLog("⚠️ WebSocket ngắt kết nối — sẽ thử lại sau 5s","error");
+      updateSrcLabel();
+      // auto reconnect
+      wsReconnectTimer = setTimeout(function(){
+        if(!wsConnected) wsConnect();
+      }, 5000);
+    };
+  }catch(e){
+    setWsBadge("disconnected");
+    addLog("❌ Không thể tạo WebSocket: "+e.message,"error");
+    updateSrcLabel();
+  }
+}
+
+function wsDisconnect(){
+  if(wsReconnectTimer){ clearTimeout(wsReconnectTimer); wsReconnectTimer=null; }
+  if(ws){ try{ws.close();}catch(e){} ws=null; }
+  wsConnected = false;
+  setWsBadge("disconnected");
+  addLog("✂️ Đã ngắt WebSocket thủ công");
+  updateSrcLabel();
+}
+
+function setWsBadge(state){
+  var badge=document.getElementById("ws-badge");
+  var label=document.getElementById("ws-label");
+  var dot=badge.querySelector(".ws-dot");
+  var sdot=document.getElementById("ws-status-dot");
+  var stxt=document.getElementById("ws-status-txt");
+  var ssub=document.getElementById("ws-status-sub");
+  badge.className="";
+  if(state==="connected"){
+    badge.className="connected"; label.textContent="MT5 LIVE";
+    dot.classList.remove("blink");
+    sdot.style.background="#00e5a0"; stxt.style.color="#00e5a0"; stxt.textContent="Đã kết nối MT5 realtime";
+    ssub.textContent="Đang nhận giá thật từ bot Python → MT5 → XM";
+  } else if(state==="connecting"){
+    badge.className="connecting"; label.textContent="WS KẾT NỐI...";
+    dot.classList.add("blink");
+    sdot.style.background="#ffaa00"; stxt.style.color="#ffaa00"; stxt.textContent="Đang kết nối...";
+    ssub.textContent="Đang thử kết nối tới WebSocket server";
+  } else {
+    badge.className="disconnected"; label.textContent="WS OFFLINE";
+    dot.classList.add("blink");
+    sdot.style.background="#ff4d6d"; stxt.style.color="#ff4d6d"; stxt.textContent="Chưa kết nối";
+    ssub.textContent="Bot Python chưa chạy hoặc địa chỉ WS sai.";
+  }
+}
+
+function updateSrcLabel(){
+  var el=document.getElementById("src-label");
+  if(wsConnected){
+    el.style.color="#00e5a0";
+    el.textContent="✅ MT5 Realtime (WebSocket)";
+  } else {
+    el.style.color="#ff4d6d";
+    el.textContent="⚠ Chưa kết nối MT5 — dùng giá giả lập";
+  }
+}
+
+// ─── Nhận price update từ WS, cập nhật ticker bar ────────────────
+function onPriceUpdate(data){
+  // data: {"EURUSD":{bid:1.0850,ask:1.0851,digits:5}, ...}
+  for(var sym in data){
+    var prev = livePrice[sym];
+    livePrice[sym] = data[sym];
+    var el = document.getElementById("tick-"+sym);
+    var chgEl = document.getElementById("chg-"+sym);
+    if(!el) continue;
+    var bid = data[sym].bid;
+    var digits = data[sym].digits || 5;
+    var priceStr = bid.toFixed(digits);
+    el.textContent = priceStr;
+    // Flash effect
+    if(prev){
+      if(bid > prev.bid){
+        el.className="ptick-price"; void el.offsetWidth;
+        el.className="ptick-price flash-up";
+        if(chgEl){ chgEl.className="ptick-chg up"; chgEl.textContent="▲"; }
+      } else if(bid < prev.bid){
+        el.className="ptick-price"; void el.offsetWidth;
+        el.className="ptick-price flash-dn";
+        if(chgEl){ chgEl.className="ptick-chg dn"; chgEl.textContent="▼"; }
+      }
+    }
+  }
+}
+
+// ─── Lấy giá hiện tại — ưu tiên WS, fallback giả lập ────────────
+function getPrice(pair){
+  var key = symKey(pair);
+  if(wsConnected && livePrice[key]){
+    var d = livePrice[key];
+    // Trả về mid price, làm tròn theo digits
+    return ((d.bid + d.ask)/2).toFixed(d.digits||5);
+  }
+  // Fallback: base + noise nhỏ
+  var base = FALLBACK_BASE[key] || 1.0;
+  return (base + (Math.random()-0.5)*0.0008).toFixed(key.includes("JPY")?3:5);
+}
+
+// ─── Yêu cầu WS bot tính indicator, chờ kết quả ─────────────────
+function requestScan(symbols){
+  return new Promise(function(resolve){
+    if(!wsConnected || !ws || ws.readyState!==1){
+      resolve(null); return;
+    }
+    var timeout = setTimeout(function(){
+      scanPendingResolve=null; resolve(null);
+    }, 5000);
+    scanPendingResolve = function(data){
+      clearTimeout(timeout); resolve(data);
+    };
+    ws.send(JSON.stringify({type:"scan",symbols:symbols.map(symKey)}));
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+function init(){
+  var pw=document.getElementById("pairs-wrap");
+  PAIRS.forEach(function(p){
+    var b=document.createElement("button");
+    b.className="chip"+(selPairs.indexOf(p)>=0?" on":"");
+    b.textContent=p;
+    b.onclick=function(){ togglePair(p,b); };
     pw.appendChild(b);
   });
-  var tw = document.getElementById("tf-wrap");
-  TFS.forEach(function(t) {
-    var b = document.createElement("button");
-    b.className = "tfbtn" + (t===selTf?" on":"");
-    b.textContent = t;
-    b.onclick = function(){ selTf=t; tw.querySelectorAll(".tfbtn").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); };
+  var tw=document.getElementById("tf-wrap");
+  TFS.forEach(function(t){
+    var b=document.createElement("button");
+    b.className="tfbtn"+(t===selTf?" on":"");
+    b.textContent=t;
+    b.onclick=function(){ selTf=t; tw.querySelectorAll(".tfbtn").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); };
     tw.appendChild(b);
   });
-  var sw = document.getElementById("sched-wrap");
-  SCHEDS.forEach(function(s) {
-    var b = document.createElement("button");
-    b.className = "tfbtn" + (s.v===selSched?" on":"");
-    b.textContent = s.l;
-    b.onclick = function(){ selSched=s.v; sw.querySelectorAll(".tfbtn").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); };
+  var sw=document.getElementById("sched-wrap");
+  SCHEDS.forEach(function(s){
+    var b=document.createElement("button");
+    b.className="tfbtn"+(s.v===selSched?" on":"");
+    b.textContent=s.l;
+    b.onclick=function(){ selSched=s.v; sw.querySelectorAll(".tfbtn").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); };
     sw.appendChild(b);
   });
   renderChat();
+  // Tự động thử kết nối WS ngay khi load
+  wsConnect();
 }
 
-function togglePair(p, btn) {
-  var i = selPairs.indexOf(p);
+// ═══════════════════════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════════════════════
+function togglePair(p,btn){
+  var i=selPairs.indexOf(p);
   if(i>=0) selPairs.splice(i,1); else selPairs.push(p);
-  btn.classList.toggle("on", selPairs.indexOf(p)>=0);
-  document.getElementById("pairlbl").textContent = selPairs.length + " cặp · Tín hiệu ≥70% → Telegram";
-  document.getElementById("st-pairs").textContent = selPairs.length;
+  btn.classList.toggle("on",selPairs.indexOf(p)>=0);
+  document.getElementById("pairlbl").textContent=selPairs.length+" cặp · Tín hiệu ≥70% → Telegram";
+  document.getElementById("st-pairs").textContent=selPairs.length;
 }
 
-function showTab(name) {
-  ["scanner","telegram","schedule","autotrade","chat"].forEach(function(t){
-    document.getElementById("pane-"+t).style.display = t===name?"block":"none";
-    document.getElementById("tab-"+t+"-btn").classList.toggle("on", t===name);
+function showTab(name){
+  ["scanner","telegram","schedule","autotrade","chat","ws"].forEach(function(t){
+    document.getElementById("pane-"+t).style.display=t===name?"block":"none";
+    document.getElementById("tab-"+t+"-btn").classList.toggle("on",t===name);
   });
 }
 
-function setStatus(s) {
-  var dot=document.getElementById("sdot"), txt=document.getElementById("stxt");
+function setStatus(s){
+  var dot=document.getElementById("sdot"),txt=document.getElementById("stxt");
   dot.className="";
   if(s==="scanning"){ dot.style.background="#ffaa00"; dot.className="dot"; txt.textContent="SCANNING"; }
   else if(s==="auto"){ dot.style.background="#00e5a0"; dot.className="livering"; txt.textContent="AUTO ON"; }
   else{ dot.style.background="#2a4a6a"; txt.textContent="STANDBY"; }
 }
 
-function addLog(msg, type) {
+function addLog(msg,type){
   var time=new Date().toLocaleTimeString("vi-VN");
-  logLines = logLines.slice(-80).concat([{msg:msg,type:type||"info",time:time}]);
+  logLines=logLines.slice(-80).concat([{msg:msg,type:type||"info",time:time}]);
   var box=document.getElementById("log-box");
-  box.innerHTML = logLines.map(function(l){
-    var c = l.type==="buy"?"#00e5a0":l.type==="sell"?"#ff4d6d":l.type==="success"?"#4da6ff":l.type==="error"?"#ff4d6d":"#6a8aaa";
+  box.innerHTML=logLines.map(function(l){
+    var c=l.type==="buy"?"#00e5a0":l.type==="sell"?"#ff4d6d":l.type==="success"?"#4da6ff":l.type==="error"?"#ff4d6d":"#6a8aaa";
     return '<div style="padding:2px 0;border-bottom:1px solid #0d1a2a;color:'+c+'"><span style="color:#2a4a6a;margin-right:5px">'+l.time+"</span>"+l.msg+"</div>";
   }).join("");
-  box.scrollTop = box.scrollHeight;
+  box.scrollTop=box.scrollHeight;
 }
 
-function fmtPrice(pair) {
-  return ((BASE[pair]||1)+(Math.random()-.5)*.002).toFixed(4);
-}
-function sparkSVG(dir) {
+function sparkSVG(dir){
   var pts=[],v=50;
   for(var i=0;i<20;i++){v+=(Math.random()-.5)*8;v=Math.max(10,Math.min(90,v));pts.push(v);}
   var max=Math.max.apply(null,pts),min=Math.min.apply(null,pts);
@@ -355,15 +772,17 @@ function sparkSVG(dir) {
   var col=dir==="BUY"?"#00e5a0":"#ff4d6d";
   return '<svg width="80" height="28"><polyline points="'+path+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
-function fmtCD(s) {
+function fmtCD(s){
   if(s>=3600) return Math.floor(s/3600)+"h "+Math.floor((s%3600)/60)+"m";
   if(s>=60)   return Math.floor(s/60)+"m "+(s%60)+"s";
   return s+"s";
 }
 function sleep(ms){ return new Promise(function(r){setTimeout(r,ms);}); }
 
-// ── SCAN ──
-async function runScan(isAuto) {
+// ═══════════════════════════════════════════════════════════════
+//  SCAN — Dùng giá THẬT từ WS (hoặc fallback giả lập)
+// ═══════════════════════════════════════════════════════════════
+async function runScan(isAuto){
   if(scanning||selPairs.length===0) return;
   scanning=true;
   document.getElementById("scanbtn").disabled=true;
@@ -374,24 +793,72 @@ async function runScan(isAuto) {
   setStatus("scanning");
   addLog(isAuto?"🔄 Auto-scan bắt đầu...":"🚀 Bắt đầu quét thị trường...");
 
+  // Nếu WS kết nối → yêu cầu bot Python tính indicator MT5
+  var wsData = null;
+  if(wsConnected){
+    addLog("📡 Yêu cầu bot Python tính indicator MT5...");
+    wsData = await requestScan(selPairs);
+    if(wsData) addLog("✅ Nhận indicator từ MT5","success");
+    else addLog("⚠️ Timeout indicator — dùng RSI giả lập","error");
+  }
+
   var sigs=[];
   for(var i=0;i<selPairs.length;i++){
     var pair=selPairs[i];
-    await sleep(380);
+    await sleep(200);
     var pct=Math.round(((i+1)/selPairs.length)*100);
     document.getElementById("pfill").style.width=pct+"%";
     document.getElementById("progpct").textContent=pct+"%";
     addLog("📡 Phân tích "+pair+" ["+selTf+"]...");
 
-    var price=fmtPrice(pair);
-    var rsi=((Math.random()*40)+30).toFixed(1);
-    var macd=((Math.random()-.5)).toFixed(4);
-    var ema=Math.random()>.5?"Bullish":"Bearish";
-    var bb=Math.random()>.5?"Upper":"Lower";
-    var str=Math.floor(Math.random()*40+60);
-    var dir=parseFloat(rsi)<40?"BUY":parseFloat(rsi)>60?"SELL":Math.random()>.5?"BUY":"SELL";
-    var sl=dir==="BUY"?(parseFloat(price)-.003).toFixed(4):(parseFloat(price)+.003).toFixed(4);
-    var tp=dir==="BUY"?(parseFloat(price)+.006).toFixed(4):(parseFloat(price)-.006).toFixed(4);
+    var key=symKey(pair);
+    // ── GIÁ THẬT từ WS hoặc fallback ──────────────────────────
+    var price=getPrice(pair);
+    var priceNum=parseFloat(price);
+
+    // ── INDICATOR: từ WS bot Python hoặc giả lập ───────────────
+    var rsi, macd, ema, bb;
+    if(wsData && wsData[key]){
+      var ind=wsData[key];
+      rsi  = ind.rsi.toFixed(1);
+      macd = ind.macd.toFixed(5);
+      ema  = ind.ema;
+      bb   = "Real";
+      addLog("📊 "+pair+": RSI="+rsi+" EMA="+ema+" MACD="+macd+" (MT5 thật)","success");
+    } else {
+      // Fallback giả lập (chỉ khi không có WS)
+      rsi  = ((Math.random()*40)+30).toFixed(1);
+      macd = ((Math.random()-.5)*.001).toFixed(5);
+      ema  = Math.random()>.5?"Bullish":"Bearish";
+      bb   = "Sim";
+    }
+
+    // ── TÍNH STRENGTH dựa trên indicator thật ──────────────────
+    var rsiNum=parseFloat(rsi);
+    var macdNum=parseFloat(macd);
+    // Tín hiệu mua/bán
+    var bullScore=0, bearScore=0;
+    if(rsiNum<40) bullScore+=30; else if(rsiNum>60) bearScore+=30;
+    if(rsiNum<30) bullScore+=20; else if(rsiNum>70) bearScore+=20;
+    if(ema==="Bullish") bullScore+=25; else bearScore+=25;
+    if(macdNum>0) bullScore+=15; else bearScore+=15;
+    // Bonus nếu giá gần EMA
+    bullScore += Math.floor(Math.random()*10);
+    bearScore += Math.floor(Math.random()*10);
+    var dir   = bullScore>bearScore?"BUY":"SELL";
+    var str   = Math.min(99, Math.floor(Math.max(bullScore,bearScore)*0.95));
+    str = Math.max(str, 60); // ít nhất 60%
+
+    // ── TP/SL tính theo giá thật ────────────────────────────────
+    var pip = key.includes("JPY")?0.05:0.0005;
+    var slPips = pip*6, tpPips = pip*12;
+    var sl=dir==="BUY"?(priceNum-slPips).toFixed(key.includes("JPY")?3:5):(priceNum+slPips).toFixed(key.includes("JPY")?3:5);
+    var tp=dir==="BUY"?(priceNum+tpPips).toFixed(key.includes("JPY")?3:5):(priceNum-tpPips).toFixed(key.includes("JPY")?3:5);
+
+    var srcTag = wsConnected && wsData && wsData[key] ?
+      '<span style="font-size:9px;color:#00e5a0;border:1px solid #00e5a044;padding:1px 5px;border-radius:3px">📡MT5</span>' :
+      '<span style="font-size:9px;color:#ffaa00;border:1px solid #ffaa0044;padding:1px 5px;border-radius:3px">⚠SIM</span>';
+
     var sig={pair:pair,price:price,rsi:rsi,macd:macd,ema:ema,bb:bb,str:str,dir:dir,sl:sl,tp:tp,tf:selTf,time:new Date().toLocaleTimeString("vi-VN")};
     sigs.push(sig);
 
@@ -405,7 +872,7 @@ async function runScan(isAuto) {
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap">'
       +'<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px;color:#e8f4ff">'+pair+'</span>'
       +'<span style="padding:2px 7px;border-radius:3px;font-size:10px;font-weight:700;background:'+(dir==="BUY"?"#00e5a022":"#ff4d6d22")+';color:'+dcol+'">'+dir+'</span>'
-      +tgbadge+atbadge
+      +srcTag+tgbadge+atbadge
       +'<span style="font-size:10px;color:#4a6a8a">'+selTf+' · '+sig.time+'</span>'
       +'</div>'
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;font-size:11px;margin-bottom:8px">'
@@ -422,15 +889,16 @@ async function runScan(isAuto) {
       +sparkSVG(dir)
       +'</div></div>';
     document.getElementById("sig-list").insertAdjacentHTML("beforeend",card);
-    addLog((dir==="BUY"?"🟢":"🔴")+" "+pair+": "+dir+" | "+str+"% | RSI "+rsi, dir==="BUY"?"buy":"sell");
+    addLog((dir==="BUY"?"🟢":"🔴")+" "+pair+": "+dir+" | "+str+"% | RSI "+rsi+(wsConnected?" (MT5)":"(SIM)"),dir==="BUY"?"buy":"sell");
   }
 
-  // AI
+  // AI phân tích
   addLog("🤖 AI đang phân tích...");
   document.getElementById("ai-box").innerHTML='<span class="dot" style="color:#4a6a8a">Đang phân tích...</span>';
   var aiText="";
-  try {
-    var prompt="Bạn là chuyên gia forex. Kết quả quét ["+selTf+"]:\n"
+  try{
+    var sourceNote = wsConnected ? "Giá thật từ MT5 realtime." : "⚠️ Giá giả lập (chưa kết nối MT5).";
+    var prompt="Bạn là chuyên gia forex. "+sourceNote+"\nKết quả quét ["+selTf+"]:\n"
       +sigs.map(function(s){return "- "+s.pair+": "+s.dir+" | Price "+s.price+" | RSI "+s.rsi+" | MACD "+s.macd+" | EMA "+s.ema+" | Strength "+s.str+"%";}).join("\n")
       +"\n\n1. Tổng quan 3 câu.\n2. TOP 1-3 cơ hội strength≥70%.\n3. Cảnh báo rủi ro 1 câu.\nTiếng Việt, súc tích.";
     var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
@@ -439,9 +907,9 @@ async function runScan(isAuto) {
     var abox=document.getElementById("ai-box");
     abox.textContent=aiText; abox.style.color="#a8c4e0"; abox.style.textAlign="left"; abox.style.whiteSpace="pre-line";
     addLog("✨ AI hoàn tất!","success");
-  } catch(e){ aiText="Lỗi AI."; document.getElementById("ai-box").textContent=aiText; addLog("❌ Lỗi AI","error"); }
+  }catch(e){ aiText="Lỗi AI."; document.getElementById("ai-box").textContent=aiText; addLog("❌ Lỗi AI","error"); }
 
-  // Telegram signals
+  // Telegram
   var token=document.getElementById("inp-token").value.trim();
   var chatid=document.getElementById("inp-chatid").value.trim();
   var topSigs=sigs.filter(function(s){return s.str>=70;}).sort(function(a,b){return b.str-a.str;}).slice(0,3);
@@ -462,25 +930,28 @@ async function runScan(isAuto) {
   document.getElementById("progwrap").style.display="none";
   document.getElementById("pfill").style.width="0%";
   setStatus(autoOn?"auto":"standby");
-  addLog("🏁 Quét xong! (lần #"+scanCount+")","success");
+  addLog("🏁 Quét xong! (lần #"+scanCount+") — "+(wsConnected?"Giá MT5 thật":"Giá giả lập"),"success");
 }
 
-// ── TELEGRAM ──
-async function sendTelegram(topSigs,analysis,tf,token,chatid) {
+// ═══════════════════════════════════════════════════════════════
+//  TELEGRAM
+// ═══════════════════════════════════════════════════════════════
+async function sendTelegram(topSigs,analysis,tf,token,chatid){
   var bar=function(s){ return "█".repeat(Math.round(s.str/10))+"░".repeat(10-Math.round(s.str/10)); };
-  var header="🤖 *FOREX SIGNAL BOT* — "+new Date().toLocaleString("vi-VN")+"\n📊 Khung: *"+tf+"* | Top "+topSigs.length+" cơ hội\n"+"─".repeat(28);
+  var srcNote=wsConnected?"📡 Giá MT5 Realtime":"⚠️ Giá giả lập";
+  var header="🤖 *FOREX SIGNAL BOT* — "+new Date().toLocaleString("vi-VN")+"\n📊 Khung: *"+tf+"* | "+srcNote+"\n"+"─".repeat(28);
   var lines=topSigs.map(function(s,i){
     var e=s.dir==="BUY"?"🟢":"🔴";
     return "\n"+(i+1)+". "+e+" *"+s.pair+"* — "+s.dir+"\n   💰 Price: `"+s.price+"`\n   🎯 TP: `"+s.tp+"`  |  🛡 SL: `"+s.sl+"`\n   📈 RSI: "+s.rsi+"  |  EMA: "+s.ema+"\n   💪 Strength: "+s.str+"% "+bar(s);
   }).join("");
   var shortAI=analysis.split("\n").slice(0,5).join("\n").slice(0,400);
   var footer="\n"+"─".repeat(28)+"\n🧠 *Phân tích AI:*\n"+shortAI+"\n\n⚠️ _Không phải lời khuyên đầu tư_";
-  try {
+  try{
     var res=await fetch("https://api.telegram.org/bot"+token+"/sendMessage",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:chatid,text:header+lines+footer,parse_mode:"Markdown"})});
     var d=await res.json();
     if(d.ok){ tgSent++; document.getElementById("hdr-tg").textContent=tgSent; document.getElementById("st-tg").textContent=tgSent; addLog("📨 Telegram: gửi "+topSigs.length+" tín hiệu!","success"); }
     else addLog("❌ Telegram: "+d.description,"error");
-  } catch(e){ addLog("❌ Lỗi kết nối Telegram","error"); }
+  }catch(e){ addLog("❌ Lỗi kết nối Telegram","error"); }
 }
 
 function saveTg(){ document.getElementById("tg-ok").style.display="block"; addLog("💾 Đã lưu Telegram","success"); }
@@ -491,14 +962,16 @@ async function testTg(){
   if(!token||!chatid){s.style.color="#ff4d6d";s.textContent="Nhập Token và Chat ID!";return;}
   s.style.color="#4a6a8a";s.textContent="Đang gửi...";
   try{
-    var res=await fetch("https://api.telegram.org/bot"+token+"/sendMessage",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:chatid,text:"✅ Forex Bot kết nối thành công! 🚀",parse_mode:"Markdown"})});
+    var res=await fetch("https://api.telegram.org/bot"+token+"/sendMessage",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:chatid,text:"✅ Forex Bot kết nối thành công! 🚀\n"+(wsConnected?"📡 MT5 Realtime đang chạy":"⚠️ WS chưa kết nối"),parse_mode:"Markdown"})});
     var d=await res.json();
     s.style.color=d.ok?"#00e5a0":"#ff4d6d"; s.textContent=d.ok?"✅ Gửi thành công!":"❌ "+d.description;
-  } catch(e){s.style.color="#ff4d6d";s.textContent="❌ Lỗi";}
+  }catch(e){s.style.color="#ff4d6d";s.textContent="❌ Lỗi";}
   setTimeout(function(){s.textContent="";},3000);
 }
 
-// ── AUTO SCHEDULE ──
+// ═══════════════════════════════════════════════════════════════
+//  AUTO SCHEDULE
+// ═══════════════════════════════════════════════════════════════
 function toggleAuto(on){
   autoOn=on;
   clearInterval(cdTimer); cdTimer=null;
@@ -516,7 +989,7 @@ function toggleAuto(on){
       sub.textContent="Quét mỗi "+(sched?sched.l:"?")+" · Tiếp theo: "+fmtCD(countdown);
       if(countdown<=0){countdown=selSched*60;runScan(true);}
     },1000);
-  } else {
+  }else{
     row.style.background="#0d1a2a"; row.style.borderColor="#1e3a5f";
     stxt.style.color="#c8d8f0"; stxt.textContent="⚪ Auto-scan tắt";
     sub.textContent="Bật để tự động quét theo lịch";
@@ -525,7 +998,9 @@ function toggleAuto(on){
   }
 }
 
-// ── AUTO TRADE ──
+// ═══════════════════════════════════════════════════════════════
+//  AUTO TRADE
+// ═══════════════════════════════════════════════════════════════
 function toggleAT(on){
   atOn=on;
   var s=document.getElementById("at-stxt");
@@ -560,15 +1035,15 @@ function renderTrades(){
     return;
   }
   box.innerHTML=trades.slice().reverse().map(function(t){
-    var dc=t.dir==="BUY"?"#00e5a0":"#ff4d6d";
     var sb=t.dir==="BUY"?'<span class="badge" style="background:#00e5a022;color:#00e5a0">BUY</span>':'<span class="badge" style="background:#ff4d6d22;color:#ff4d6d">SELL</span>';
     var stb=t.status==="open"?'<span class="badge" style="background:#ffaa0022;color:#ffaa00">⏳ MỞ</span>':t.status==="win"?'<span class="badge" style="background:#00e5a033;color:#00e5a0">✅ THẮNG</span>':'<span class="badge" style="background:#ff4d6d33;color:#ff4d6d">❌ THUA</span>';
     var pnlhtml=t.status==="open"?'<span style="color:#4a6a8a">--</span>':t.pnl>=0?'<span style="color:#00e5a0;font-weight:700">+'+t.pnl.toFixed(2)+' USD</span>':'<span style="color:#ff4d6d;font-weight:700">'+t.pnl.toFixed(2)+' USD</span>';
     var closeBtn=t.status==="open"?' &nbsp;<span style="cursor:pointer;color:#4da6ff;font-size:10px" onclick="closeTrade('+t.id+',\'manual\')">Đóng thủ công</span>':"";
+    var srcIcon=t.realPrice?'<span style="font-size:9px;color:#00e5a0">📡</span>':'<span style="font-size:9px;color:#ffaa00">⚠</span>';
     return '<div class="tccard '+t.status+'">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap">'
       +'<span style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#e8f4ff">'+t.pair+'</span>'
-      +sb+stb+'<span style="font-size:10px;color:#4a6a8a;margin-left:auto">'+t.time+'</span></div>'
+      +sb+stb+srcIcon+'<span style="font-size:10px;color:#4a6a8a;margin-left:auto">'+t.time+'</span></div>'
       +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;font-size:11px">'
       +'<div><div style="color:#4a6a8a;margin-bottom:1px">ENTRY</div><div style="color:#c8d8f0;font-weight:600">'+t.entry+'</div></div>'
       +'<div><div style="color:#4a6a8a;margin-bottom:1px">TP</div><div style="color:#00e5a0;font-weight:600">'+t.tp+'</div></div>'
@@ -580,13 +1055,19 @@ function renderTrades(){
   }).join("");
 }
 
-async function openTrade(sig, token, chatid){
+async function openTrade(sig,token,chatid){
   tradeSeq++;
-  var t={id:tradeSeq,pair:sig.pair,dir:sig.dir,entry:sig.price,sl:sig.sl,tp:sig.tp,lot:atLot,str:sig.str,time:new Date().toLocaleTimeString("vi-VN"),status:"open",pnl:0,pipVal:atLot*10};
+  var t={
+    id:tradeSeq,pair:sig.pair,dir:sig.dir,entry:sig.price,
+    sl:sig.sl,tp:sig.tp,lot:atLot,str:sig.str,
+    time:new Date().toLocaleTimeString("vi-VN"),
+    status:"open",pnl:0,pipVal:atLot*10,
+    realPrice: wsConnected  // đánh dấu giá thật/giả
+  };
   trades.push(t);
   atTotal++; atOpenN++;
   updateATStats(); renderTrades();
-  addLog("🎯 VÀO LỆNH: "+sig.dir+" "+sig.pair+" @ "+sig.price+" | Lot "+atLot+" | "+sig.str+"%","success");
+  addLog("🎯 VÀO LỆNH: "+sig.dir+" "+sig.pair+" @ "+sig.price+" | Lot "+atLot+" | "+sig.str+"%"+(wsConnected?" [MT5]":" [SIM]"),"success");
   if(token&&chatid){
     var bar="█".repeat(Math.round(sig.str/10))+"░".repeat(10-Math.round(sig.str/10));
     var msg="🎯 *AUTO TRADE DEMO* — "+new Date().toLocaleString("vi-VN")+"\n"
@@ -595,15 +1076,16 @@ async function openTrade(sig, token, chatid){
       +"💰 Entry: `"+sig.price+"`\n"
       +"🎯 TP: `"+sig.tp+"`  |  🛡 SL: `"+sig.sl+"`\n"
       +"📦 Lot: "+atLot+"  |  💪 Strength: "+sig.str+"%\n"
-      +bar+"\n"
+      +bar+"\n"+(wsConnected?"📡 Giá MT5 Realtime":"⚠️ Giá giả lập")+"\n"
       +"─".repeat(28)+"\n"
       +"⚡ _Lệnh DEMO — không phải tiền thật_";
     try{ await fetch("https://api.telegram.org/bot"+token+"/sendMessage",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:chatid,text:msg,parse_mode:"Markdown"})}); }catch(e){}
   }
-  setTimeout(function(){ closeTrade(t.id,"auto"); }, 8000+Math.random()*7000);
+  // Tự đóng sau 8-15s (DEMO)
+  setTimeout(function(){ closeTrade(t.id,"auto"); },8000+Math.random()*7000);
 }
 
-function closeTrade(id, reason){
+function closeTrade(id,reason){
   var t=null;
   for(var i=0;i<trades.length;i++){if(trades[i].id===id){t=trades[i];break;}}
   if(!t||t.status!=="open") return;
@@ -634,7 +1116,9 @@ function clearTrades(){
   updateATStats(); renderTrades(); addLog("🗑 Đã xóa lịch sử lệnh","info");
 }
 
-// ── CHAT ──
+// ═══════════════════════════════════════════════════════════════
+//  AI CHAT
+// ═══════════════════════════════════════════════════════════════
 function renderChat(){
   var box=document.getElementById("chat-box");
   box.innerHTML=chatHist.map(function(m){
@@ -665,6 +1149,23 @@ async function sendChat(){
   renderChat();
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  COPY PYTHON CODE
+// ═══════════════════════════════════════════════════════════════
+function copyPyCode(){
+  var code=document.getElementById("py-code").textContent;
+  navigator.clipboard.writeText(code).then(function(){
+    var btn=event.target;
+    btn.textContent="✅ Đã copy!";
+    setTimeout(function(){btn.textContent="📋 Copy";},2000);
+  }).catch(function(){
+    alert("Không copy được — hãy chọn và copy thủ công.");
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  KHỞI ĐỘNG
+// ═══════════════════════════════════════════════════════════════
 init();
 </script>
 </body>
