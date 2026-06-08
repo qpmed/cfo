@@ -51,6 +51,22 @@ body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;col
 .empty-state{text-align:center;padding:50px 20px;color:#2a4a6a;border:1px dashed #1e3a5f;border-radius:10px;}
 .schedule-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:8px;margin-bottom:16px;border:1px solid #1e3a5f;background:#0d1a2a;}
 @media(max-width:700px){.two-col{grid-template-columns:1fr;}}
+.trade-card{background:#0d1420;border:1px solid #1e3a5f;border-radius:8px;padding:13px 15px;margin-bottom:8px;transition:all .3s;}
+.trade-card.open{border-left:3px solid #ffaa00;}
+.trade-card.win{border-left:3px solid #00e5a0;background:#00e5a005;}
+.trade-card.loss{border-left:3px solid #ff4d6d;background:#ff4d6d05;}
+@keyframes tradeIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+.trade-new{animation:tradeIn .4s ease forwards;}
+@keyframes flash{0%,100%{background:#0d1420}50%{background:#ffaa0022}}
+.trade-flash{animation:flash .6s ease 2;}
+.badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.08em;}
+.badge-buy{background:#00e5a022;color:#00e5a0;}
+.badge-sell{background:#ff4d6d22;color:#ff4d6d;}
+.badge-open{background:#ffaa0022;color:#ffaa00;}
+.badge-win{background:#00e5a033;color:#00e5a0;}
+.badge-loss{background:#ff4d6d33;color:#ff4d6d;}
+.pnl-pos{color:#00e5a0;font-weight:700;}
+.pnl-neg{color:#ff4d6d;font-weight:700;}
 </style>
 </head>
 <body>
@@ -60,12 +76,16 @@ body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;col
   <div style="width:36px;height:36px;background:linear-gradient(135deg,#0066ff,#00ccff);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">₣</div>
   <div>
     <div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;color:#e8f4ff;letter-spacing:.02em">FOREX SIGNAL BOT</div>
-    <div style="font-size:10px;color:#4a6a8a;letter-spacing:.1em">AI-POWERED · AUTO-SCHEDULE · TELEGRAM ALERTS</div>
+    <div style="font-size:10px;color:#4a6a8a;letter-spacing:.1em">AI-POWERED · AUTO-SCHEDULE · AUTO-TRADE · TELEGRAM</div>
   </div>
   <div style="margin-left:auto;display:flex;gap:20px;align-items:center">
     <div id="hdr-countdown" style="text-align:right;display:none">
       <div style="font-size:10px;color:#4a6a8a">QUÉT TIẾP THEO</div>
       <div id="hdr-countdown-val" style="font-size:13px;font-weight:700;color:#00e5a0">--</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:10px;color:#4a6a8a">LỆNH MỞ</div>
+      <div id="hdr-trade-count" style="font-size:13px;font-weight:700;color:#ffaa00">0</div>
     </div>
     <div style="text-align:right">
       <div style="font-size:10px;color:#4a6a8a">TG ĐÃ GỬI</div>
@@ -83,6 +103,7 @@ body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;col
   <button class="tab-btn on" onclick="showTab('scanner')">📡 Scanner</button>
   <button class="tab-btn" onclick="showTab('telegram')">✈️ Telegram</button>
   <button class="tab-btn" onclick="showTab('schedule')">⏱ Lịch</button>
+  <button class="tab-btn" onclick="showTab('autotrade')">🎯 Auto Trade</button>
   <button class="tab-btn" onclick="showTab('chat')">💬 AI Chat</button>
 </div>
 
@@ -219,6 +240,88 @@ body{background:#080c14;font-family:'JetBrains Mono','Courier New',monospace;col
     </div>
   </div>
 
+
+  <!-- ═══════════════ AUTO TRADE TAB ═══════════════ -->
+  <div id="tab-autotrade" style="display:none">
+    <!-- Settings row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="card">
+        <div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e8f4ff;margin-bottom:14px">🎯 Cài đặt Auto Trade</div>
+        <div style="margin-bottom:12px">
+          <div class="label">NGƯỠNG VÀO LỆNH (STRENGTH %)</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="at-threshold" min="80" max="99" value="95" oninput="document.getElementById('at-threshold-val').textContent=this.value+'%'"
+              style="flex:1;accent-color:#0066ff;cursor:pointer"/>
+            <span id="at-threshold-val" style="font-size:14px;font-weight:700;color:#ffaa00;min-width:40px">95%</span>
+          </div>
+          <div style="font-size:10px;color:#4a6a8a;margin-top:4px">Chỉ vào lệnh khi signal đạt ngưỡng này</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div class="label">LOT SIZE (DEMO)</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap" id="lot-btns">
+            <button class="tf-btn on" onclick="setLot(0.01,this)">0.01</button>
+            <button class="tf-btn" onclick="setLot(0.05,this)">0.05</button>
+            <button class="tf-btn" onclick="setLot(0.1,this)">0.1</button>
+            <button class="tf-btn" onclick="setLot(0.5,this)">0.5</button>
+            <button class="tf-btn" onclick="setLot(1.0,this)">1.0</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#0d1a2a;border:1px solid #1e3a5f;border-radius:8px">
+          <div>
+            <div id="at-status-txt" style="font-size:13px;font-weight:700;color:#c8d8f0">⚪ Auto Trade tắt</div>
+            <div style="font-size:11px;color:#4a6a8a;margin-top:2px">Tự động vào lệnh + báo Telegram</div>
+          </div>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="at-toggle" onchange="toggleAutoTrade(this.checked)"/>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- P&L Summary -->
+      <div class="card">
+        <div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#e8f4ff;margin-bottom:14px">📊 Hiệu suất Demo</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+          <div class="stat-box">
+            <div id="at-total" style="font-size:20px;font-weight:800;color:#4da6ff;font-family:Syne,sans-serif">0</div>
+            <div style="font-size:10px;color:#4a6a8a;margin-top:2px">Tổng lệnh</div>
+          </div>
+          <div class="stat-box">
+            <div id="at-open" style="font-size:20px;font-weight:800;color:#ffaa00;font-family:Syne,sans-serif">0</div>
+            <div style="font-size:10px;color:#4a6a8a;margin-top:2px">Đang mở</div>
+          </div>
+          <div class="stat-box">
+            <div id="at-win" style="font-size:20px;font-weight:800;color:#00e5a0;font-family:Syne,sans-serif">0</div>
+            <div style="font-size:10px;color:#4a6a8a;margin-top:2px">Thắng</div>
+          </div>
+          <div class="stat-box">
+            <div id="at-loss" style="font-size:20px;font-weight:800;color:#ff4d6d;font-family:Syne,sans-serif">0</div>
+            <div style="font-size:10px;color:#4a6a8a;margin-top:2px">Thua</div>
+          </div>
+        </div>
+        <div style="padding:12px;background:#0d1a2a;border-radius:8px;border:1px solid #1e3a5f;text-align:center">
+          <div style="font-size:10px;color:#4a6a8a;margin-bottom:4px">TỔNG P&L (DEMO USD)</div>
+          <div id="at-pnl" style="font-size:26px;font-weight:800;font-family:Syne,sans-serif;color:#c8d8f0">$0.00</div>
+          <div id="at-winrate" style="font-size:11px;color:#4a6a8a;margin-top:3px">Winrate: --</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trade history -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="label" style="margin-bottom:0">📋 LỊCH SỬ LỆNH DEMO</div>
+        <button class="btn btn-sm" onclick="clearTrades()" style="background:linear-gradient(135deg,#441133,#330022);font-size:10px;padding:4px 10px">🗑 Xóa tất cả</button>
+      </div>
+      <div id="trade-list">
+        <div style="text-align:center;padding:40px 0;color:#2a4a6a;font-size:12px">
+          <div style="font-size:32px;margin-bottom:8px">🎯</div>
+          Bật Auto Trade và chạy quét — lệnh sẽ hiện ở đây khi strength ≥ ngưỡng
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- DISCLAIMER -->
   <div style="margin-top:18px;padding:9px 14px;background:#0d1420;border-radius:7px;border:1px solid #ff4d6d22">
     <span style="color:#ff4d6d;font-size:10px;font-weight:700;letter-spacing:.1em">⚠️ DISCLAIMER: </span>
@@ -245,6 +348,13 @@ let autoTimer   = null;
 let countdown   = 0;
 let cdTimer     = null;
 let chatHistory = [{role:"assistant",content:"Xin chào! Tôi là Forex AI. Hỏi tôi về phân tích, chiến lược, hoặc quản lý rủi ro."}];
+
+// Auto-trade state
+let atEnabled   = false;
+let atLot       = 0.01;
+let trades      = [];   // {id,pair,direction,entry,sl,tp,lot,strength,time,status,pnl}
+let tradeIdSeq  = 0;
+let atTotal=0, atOpen=0, atWin=0, atLoss=0, atPnl=0;
 
 // ── INIT ────────────────────────────────────────────────────────
 function init() {
@@ -289,11 +399,11 @@ function togglePair(p, btn) {
 
 // ── TAB ──────────────────────────────────────────────────────────
 function showTab(name) {
-  ["scanner","telegram","schedule","chat"].forEach(t => {
+  ["scanner","telegram","schedule","autotrade","chat"].forEach(t => {
     document.getElementById("tab-"+t).style.display = t===name?"block":"none";
   });
   document.querySelectorAll(".tab-btn").forEach((b,i) => {
-    b.classList.toggle("on", ["scanner","telegram","schedule","chat"][i]===name);
+    b.classList.toggle("on", ["scanner","telegram","schedule","autotrade","chat"][i]===name);
   });
 }
 
@@ -427,6 +537,15 @@ async function runScan(isAuto=false) {
     addLog("❌ Lỗi AI API","error");
   }
 
+  // Auto Trade: vào lệnh với signal đạt ngưỡng
+  if(atEnabled) {
+    const threshold = getThreshold();
+    const autoTradeSigs = mockSignals.filter(s=>s.strength>=threshold).sort((a,b)=>b.strength-a.strength);
+    for(const sig of autoTradeSigs) {
+      await openTrade(sig, document.getElementById("inp-token").value.trim(), document.getElementById("inp-chatid").value.trim());
+    }
+  }
+
   // Telegram
   const topSigs = mockSignals.filter(s=>s.strength>=MIN_STR).sort((a,b)=>b.strength-a.strength).slice(0,3);
   const token=document.getElementById("inp-token").value.trim();
@@ -449,12 +568,177 @@ async function runScan(isAuto=false) {
   addLog(`🏁 Quét hoàn tất! (lần #${scanCount})`,"success");
 }
 
+
+// ── AUTO TRADE ────────────────────────────────────────────────────
+function toggleAutoTrade(on) {
+  atEnabled = on;
+  const stxt = document.getElementById("at-status-txt");
+  if(on){ stxt.style.color="#00e5a0"; stxt.textContent="🟢 Auto Trade đang bật"; }
+  else  { stxt.style.color="#c8d8f0"; stxt.textContent="⚪ Auto Trade tắt"; }
+  addLog(on?"🎯 Auto Trade BẬT — sẽ vào lệnh khi strength ≥ "+getThreshold()+"%":"⏹ Auto Trade TẮT","info");
+}
+
+function getThreshold() { return parseInt(document.getElementById("at-threshold").value); }
+
+function setLot(val, btn) {
+  atLot = val;
+  document.getElementById("lot-btns").querySelectorAll(".tf-btn").forEach(b=>b.classList.remove("on"));
+  btn.classList.add("on");
+}
+
+function updateAtStats() {
+  document.getElementById("at-total").textContent = atTotal;
+  document.getElementById("at-open").textContent  = atOpen;
+  document.getElementById("at-win").textContent   = atWin;
+  document.getElementById("at-loss").textContent  = atLoss;
+  document.getElementById("hdr-trade-count").textContent = atOpen;
+  const pnlEl = document.getElementById("at-pnl");
+  pnlEl.textContent = (atPnl>=0?"+":"")+atPnl.toFixed(2)+" USD";
+  pnlEl.className = atPnl>=0?"pnl-pos":"pnl-neg";
+  const closed = atWin+atLoss;
+  document.getElementById("at-winrate").textContent = closed>0?"Winrate: "+Math.round(atWin/closed*100)+"%  ("+atWin+"W / "+atLoss+"L)":"Winrate: --";
+}
+
+function renderTrades() {
+  const box = document.getElementById("trade-list");
+  if(trades.length===0){
+    box.innerHTML='<div style="text-align:center;padding:40px 0;color:#2a4a6a;font-size:12px"><div style="font-size:32px;margin-bottom:8px">🎯</div>Bật Auto Trade và chạy quét — lệnh sẽ hiện ở đây khi strength ≥ ngưỡng</div>';
+    return;
+  }
+  box.innerHTML = [...trades].reverse().map(t => {
+    const dirBadge = t.direction==="BUY"?'<span class="badge badge-buy">BUY</span>':'<span class="badge badge-sell">SELL</span>';
+    let statusBadge, pnlHtml="";
+    if(t.status==="open"){
+      statusBadge='<span class="badge badge-open">⏳ MỞ</span>';
+    } else if(t.status==="win"){
+      statusBadge='<span class="badge badge-win">✅ THẮNG</span>';
+      pnlHtml=`<span class="pnl-pos">+${t.pnl.toFixed(2)} USD</span>`;
+    } else {
+      statusBadge='<span class="badge badge-loss">❌ THUA</span>';
+      pnlHtml=`<span class="pnl-neg">${t.pnl.toFixed(2)} USD</span>`;
+    }
+    return `<div class="trade-card ${t.status} trade-new" id="tc-${t.id}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <span style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#e8f4ff">${t.pair}</span>
+        ${dirBadge} ${statusBadge}
+        <span style="font-size:10px;color:#4a6a8a;margin-left:auto">${t.time}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;font-size:11px">
+        <div><div style="color:#4a6a8a;margin-bottom:1px">ENTRY</div><div style="color:#c8d8f0;font-weight:600">${t.entry}</div></div>
+        <div><div style="color:#4a6a8a;margin-bottom:1px">TP</div><div style="color:#00e5a0;font-weight:600">${t.tp}</div></div>
+        <div><div style="color:#4a6a8a;margin-bottom:1px">SL</div><div style="color:#ff4d6d;font-weight:600">${t.sl}</div></div>
+        <div><div style="color:#4a6a8a;margin-bottom:1px">LOT</div><div style="color:#c8d8f0;font-weight:600">${t.lot}</div></div>
+        <div><div style="color:#4a6a8a;margin-bottom:1px">P&L</div><div>${pnlHtml||'<span style="color:#4a6a8a">--</span>'}</div></div>
+      </div>
+      <div style="margin-top:7px;font-size:10px;color:#4a6a8a">Strength: <span style="color:#ffaa00;font-weight:700">${t.strength}%</span>${t.status==="open"?` &nbsp;|&nbsp; <span style="cursor:pointer;color:#4da6ff" onclick="closeTrade(${t.id},'manual')">Đóng thủ công</span>`:""}</div>
+    </div>`;
+  }).join("");
+}
+
+async function openTrade(sig, token, chatId) {
+  const threshold = getThreshold();
+  if(!atEnabled || sig.strength < threshold) return;
+
+  tradeIdSeq++;
+  const pipVal = atLot * 10; // simplified demo P&L
+  const trade = {
+    id:tradeIdSeq, pair:sig.pair, direction:sig.direction,
+    entry:sig.price, sl:sig.sl, tp:sig.tp, lot:atLot,
+    strength:sig.strength, time:new Date().toLocaleTimeString("vi-VN"),
+    status:"open", pnl:0, pipVal
+  };
+  trades.push(trade);
+  atTotal++; atOpen++;
+  updateAtStats();
+  renderTrades();
+  addLog(`🎯 VÀO LỆNH DEMO: ${sig.direction} ${sig.pair} @ ${sig.price} | Lot ${atLot} | Str ${sig.strength}%`,"success");
+
+  // Send Telegram for auto-trade entry
+  if(token && chatId) {
+    const bar = "█".repeat(Math.round(sig.strength/10))+"░".repeat(10-Math.round(sig.strength/10));
+    const msg = `🎯 *AUTO TRADE DEMO* — ${new Date().toLocaleString("vi-VN")}
+`+
+      `${"─".repeat(28)}
+`+
+      `${sig.direction==="BUY"?"🟢":"🔴"} *${sig.pair}* — ${sig.direction}
+`+
+      `💰 Entry: `${sig.price}`
+`+
+      `🎯 TP: `${sig.tp}`  |  🛡 SL: `${sig.sl}`
+`+
+      `📦 Lot: ${atLot}  |  💪 Strength: ${sig.strength}%
+`+
+      `${bar}
+`+
+      `${"─".repeat(28)}
+`+
+      `⚡ _Lệnh DEMO — không phải tiền thật_`;
+    try {
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({chat_id:chatId,text:msg,parse_mode:"Markdown"})
+      });
+    } catch{}
+  }
+
+  // Simulate close after 8-15 seconds (demo)
+  const delay = (8 + Math.random()*7) * 1000;
+  setTimeout(()=>closeTrade(trade.id, "auto"), delay);
+}
+
+function closeTrade(id, reason) {
+  const t = trades.find(x=>x.id===id);
+  if(!t || t.status!=="open") return;
+
+  // demo: 60% win rate weighted by strength
+  const winProb = (t.strength - 60) / 40; // 95% str -> 87.5% win prob
+  const isWin = Math.random() < Math.min(0.88, Math.max(0.4, winProb));
+  const pipsWon = isWin ? +(Math.random()*15+5).toFixed(1) : -(Math.random()*8+3).toFixed(1);
+  t.pnl = parseFloat((pipsWon * t.pipVal).toFixed(2));
+  t.status = isWin?"win":"loss";
+
+  atOpen--;
+  if(isWin) atWin++; else atLoss++;
+  atPnl = parseFloat((atPnl + t.pnl).toFixed(2));
+  updateAtStats();
+  renderTrades();
+
+  const emoji = isWin?"✅":"❌";
+  addLog(`\${emoji} ĐÓNG LỆNH \${t.pair}: \${isWin?"THẮNG":"THUA"} \${t.pnl>=0?"+":""}\${t.pnl} USD (\${reason==="manual"?"thủ công":"tự động"})`,isWin?"success":"error");
+
+  // Send close notification to Telegram
+  const token=document.getElementById("inp-token").value.trim();
+  const chatId=document.getElementById("inp-chatid").value.trim();
+  if(token && chatId){
+    const msg = `\${isWin?"✅":"❌"} *ĐÓNG LỆNH DEMO*
+`+
+      `\${t.direction==="BUY"?"🟢":"🔴"} *\${t.pair}* — \${t.direction}
+`+
+      `💰 Entry: `\${t.entry}`  →  Exit: `\${t.tp}`
+`+
+      `📊 P&L: \${t.pnl>=0?"+":""}\${t.pnl} USD
+`+
+      `⚡ _Lệnh DEMO_`;
+    fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({chat_id:chatId,text:msg,parse_mode:"Markdown"})
+    }).catch(()=>{});
+  }
+}
+
+function clearTrades() {
+  if(!confirm("Xóa toàn bộ lịch sử lệnh demo?")) return;
+  trades=[]; atTotal=0; atOpen=0; atWin=0; atLoss=0; atPnl=0;
+  updateAtStats(); renderTrades();
+  addLog("🗑 Đã xóa lịch sử lệnh demo","info");
+}
+
 // ── TELEGRAM ─────────────────────────────────────────────────────
 async function sendTelegram(topSigs, analysis, tf, token, chatId) {
   const emoji=s=>s.direction==="BUY"?"🟢":"🔴";
   const bar=s=>"█".repeat(Math.round(s.strength/10))+"░".repeat(10-Math.round(s.strength/10));
   const header=`🤖 *FOREX SIGNAL BOT* — ${new Date().toLocaleString("vi-VN")}\n📊 Khung: *${tf}* | Top ${topSigs.length} cơ hội\n${"─".repeat(28)}`;
-  const lines=topSigs.map((s,i)=>`\n${i+1}. ${emoji(s)} *${s.pair}* — ${s.direction}\n   💰 Price: \`${s.price}\`\n   🎯 TP: \`${s.tp}\`  |  🛡 SL: \`${s.sl}\`\n   📈 RSI: ${s.rsi}  |  EMA: ${s.ema}\n   💪 Strength: ${s.strength}%  ${bar(s)}`).join("");
+  const lines=topSigs.map((s,i)=>`\n${i+1}. ${emoji(s)} *${s.pair}* — ${s.direction}\n   💰 Price: `${s.price}`\n   🎯 TP: `${s.tp}`  |  🛡 SL: `${s.sl}`\n   📈 RSI: ${s.rsi}  |  EMA: ${s.ema}\n   💪 Strength: ${s.strength}%  ${bar(s)}`).join("");
   const shortAI=analysis.split("\n").slice(0,5).join("\n").slice(0,400);
   const footer=`\n${"─".repeat(28)}\n🧠 *Phân tích AI:*\n${shortAI}\n\n⚠️ _Không phải lời khuyên đầu tư. Quản lý rủi ro!_`;
   try {
